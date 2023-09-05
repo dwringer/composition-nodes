@@ -19,8 +19,8 @@ from invokeai.app.invocations.primitives import (
 
 
 @invocation(
-    "img_offset",
-    title="Image Offset",
+    "offset_image",
+    title="Offset Image",
     tags=["image", "offset"],
     category="image",
 )
@@ -32,8 +32,8 @@ class ImageOffsetInvocation(BaseInvocation):
     image: ImageField = InputField(
         default=None, description="Image to be offset"
     )
-    x_offset:   float = InputField(default=0, description="x-offset for the subject")
-    y_offset:   float = InputField(default=0, description="y-offset for the subject")
+    x_offset:   float = InputField(default=0.5, description="x-offset for the subject")
+    y_offset:   float = InputField(default=0.5, description="y-offset for the subject")
 
     def invoke(self, context: InvocationContext) -> ImageOutput:
         image_to_offset = context.services.images.get_pil_image(self.image.image_name).convert(mode="RGBA")

@@ -1,6 +1,4 @@
-
 import torch
-
 
 from invokeai.app.invocations.baseinvocation import (
     BaseInvocation,
@@ -24,6 +22,7 @@ from invokeai.app.invocations.primitives import (
     tags=["latents", "offset"],
     category="latents")
 class OffsetLatentsInvocation(BaseInvocation):
+    """Offsets a latents tensor by a given percentage of height/width."""
     latents: LatentsField = InputField(
         description=FieldDescriptions.latents,
         input=Input.Connection,
