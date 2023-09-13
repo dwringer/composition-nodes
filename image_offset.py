@@ -23,6 +23,7 @@ from invokeai.app.invocations.primitives import (
     title="Offset Image",
     tags=["image", "offset"],
     category="image",
+    version="1.0.0",    
 )
 class ImageOffsetInvocation(BaseInvocation):
     """Offsets an image by a given percentage (or pixel amount)."""

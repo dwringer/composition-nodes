@@ -20,7 +20,9 @@ from invokeai.app.invocations.primitives import (
     "offset_latents",
     title="Offset Latents",
     tags=["latents", "offset"],
-    category="latents")
+    category="latents",
+    version="1.0.0",
+)
 class OffsetLatentsInvocation(BaseInvocation):
     """Offsets a latents tensor by a given percentage of height/width."""
     latents: LatentsField = InputField(

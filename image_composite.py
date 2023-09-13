@@ -23,6 +23,7 @@ from invokeai.app.invocations.primitives import (
     title="Image Compositor",
     tags=["image", "compose", "chroma", "key"],
     category="image",
+    version="1.0.0",
 )
 class ImageCompositorInvocation(BaseInvocation):
     """Removes backdrop from subject image then overlays subject on background image"""

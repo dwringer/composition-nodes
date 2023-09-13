@@ -19,7 +19,8 @@ from invokeai.app.invocations.primitives import (
     "text_mask",
     title="Text Mask",
     tags=["image", "text", "mask"],
-    category="mask"
+    category="mask",
+    version="1.0.0"
 )
 class TextMaskInvocation(BaseInvocation):
     """Creates a 2D rendering of a text mask from a given font"""
