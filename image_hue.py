@@ -5,7 +5,7 @@ import os.path
 from math import pi as PI
 from typing import Literal
 
-import PIL.Image
+import PIL.Image, PIL.ImageOps
 import torch
 from torchvision.transforms.functional import to_pil_image as pil_image_from_tensor
 
@@ -40,6 +40,98 @@ COLOR_SPACES = [
     "*UPLab (w/CIELab_to_UPLab.icc)",
 ]
 
+
+BLEND_MODES = [
+    "Normal",
+    # TODO: ...
+]
+
+
+@invocation(
+    "img_blend",
+    title="Image Blend",
+    tags=["image", "blend", "layer", "alpha", "composite"],
+    category="image",
+    version="1.0.0",
+)
+class ImageBlendInvocation(BaseInvocation):
+    """Blend two images together"""
+
+    layer_upper: ImageField = InputField(description="The top image to blend")
+    layer_base: ImageField = InputField(description="The bottom image to blend")
+    blend_mode: Literal[tuple(BLEND_MODES)] = InputField(default=BLEND_MODES[0], description="Available blend modes")
+    opacity: float = InputField(default=1., description="Desired opacity of the upper layer")
+    fit_to_width: bool = InputField(default=False, description="Scale upper layer to fit base width")
+    fit_to_height: bool = InputField(default=True,  description="Scale upper layer to fit base height")
+
+    def invoke(self, context: InvocationContext) -> ImageOutput:
+        image_upper = context.services.images.get_pil_image(self.layer_upper.image_name)
+        image_base = context.services.images.get_pil_image(self.layer_base.image_name)
+
+        aspect_base = image_base.width / image_base.height
+        aspect_upper = image_upper.width / image_upper.height
+        if self.fit_to_width and self.fit_to_height:
+            image_upper = image_upper.resize((image_base.width, image_base.height))
+        elif ((self.fit_to_width and (aspect_base < aspect_upper)) or
+              (self.fit_to_height and (aspect_upper <= aspect_base))):
+            image_upper = PIL.ImageOps.pad(image_upper, (image_base.width, image_base.height), color=(0, 0, 0, 0))
+        elif ((self.fit_to_width and (aspect_upper <= aspect_base)) or
+              (self.fit_to_height and (aspect_base < aspect_upper))):
+            image_upper = PIL.ImageOps.fit(image_upper, (image_base.width, image_base.height))
+
+        # Keep the modes for restoration after processing:
+        image_mode_upper = image_upper.mode
+        image_mode_base = image_base.mode
+
+        image_upper, image_base = image_upper.convert("RGBA"), image_base.convert("RGBA")
+        alpha_upper, alpha_lower = image_upper.getchannel("A"), image_base.getchannel("A")
+        image_upper, image_base = image_upper.convert("RGB"), image_base.convert("RGB")
+
+        # Now do alpha compositing and any other filtering
+        upper_tensor = tensor_from_pil_image(image_upper, normalize=False)
+        lower_tensor = tensor_from_pil_image(image_base, normalize=False)
+        alpha_upper_tensor = tensor_from_pil_image(alpha_upper, normalize=False)[0,:,:]
+        alpha_lower_tensor = tensor_from_pil_image(alpha_lower, normalize=False)[0,:,:]
+
+        upper_tensor, lower_tensor = linear_srgb_from_srgb(upper_tensor), linear_srgb_from_srgb(lower_tensor)
+
+        alpha_upper_tensor = torch.mul(alpha_upper_tensor, self.opacity)
+        alpha_tensor = torch.add(
+            alpha_upper_tensor, torch.mul(alpha_lower_tensor, torch.add(torch.mul(alpha_upper_tensor, -1.), 1.))
+        )
+        output_tensor = torch.div(torch.add(torch.mul(upper_tensor, alpha_upper_tensor),
+                                           torch.mul(torch.mul(lower_tensor, alpha_lower_tensor),
+                                                     torch.add(torch.mul(alpha_upper_tensor, -1.), 1.))),
+                                 alpha_tensor)
+        
+        output_tensor = srgb_from_linear_srgb(output_tensor)
+
+        output_tensor = torch.stack(
+            [
+                output_tensor[0,:,:],
+                output_tensor[1,:,:],
+                output_tensor[2,:,:],
+                alpha_tensor
+            ]
+        )
+
+        image_out = pil_image_from_tensor(output_tensor, mode="RGBA")
+        image_out = image_out.convert(image_mode_base)
+        
+        image_dto = context.services.images.create(
+            image=image_out,
+            image_origin=ResourceOrigin.INTERNAL,
+            image_category=ImageCategory.GENERAL,
+            node_id=self.id,
+            session_id=context.graph_execution_state_id,
+            is_intermediate=self.is_intermediate
+        )
+        return ImageOutput(
+            image=ImageField(image_name=image_dto.image_name),
+            width=image_dto.width,
+            height=image_dto.height
+        )
+    
 
 @invocation(
     "img_hue_adjust_plus",

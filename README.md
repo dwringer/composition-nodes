@@ -12,6 +12,10 @@ Rotate the hue of an image in one of several different color spaces.
 
 Use a mask to blend part of one latents tensor into another. Can be used to "renoise" sections during a multi-stage [masked] denoising process.
 
+### Equivalent Achromatic Lightness
+
+Calculates image lightness accounting for Helmholtz-Kohlrausch effect based on a method described by High, Green, and Nussbaum (2023) [https://doi.org/10.1002/col.22839].
+
 ### Text to Mask (Clipseg)
 
 Input a prompt and an image to generate a mask representing areas of the image matched by the prompt.
@@ -19,6 +23,10 @@ Input a prompt and an image to generate a mask representing areas of the image m
 ### Text to Mask Advanced (Clipseg)
 
 Output up to four prompt masks combined with logical "and", logical "or", or as separate channels of an RGBA image.
+
+### Image Blend
+
+Perform a layered blend of two images using alpha compositing. Opacity of top layer is selectable.
 
 ### Image Compositor
 
