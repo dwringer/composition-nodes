@@ -1,3 +1,4 @@
+![composition pack main image](https://raw.githubusercontent.com/dwringer/composition-nodes/main/composition_pack.jpg)
 ![composition nodes usage graph](https://raw.githubusercontent.com/dwringer/composition-nodes/main/composition_nodes_usage.jpg)
 
 ### Installation:

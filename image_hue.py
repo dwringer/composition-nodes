@@ -1,5 +1,10 @@
 # Copyright (c) 2023 Darren Ringer <dwringer@gmail.com>
+
 # Parts based on Oklab: Copyright (c) 2021 Björn Ottosson <https://bottosson.github.io/>
+
+# HSL conversion based on CPython source: Copyright (c) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
+#                                         2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022,
+#                                         2023 Python Software Foundation; All Rights Reserved
 
 import os.path
 from math import pi as PI
@@ -43,6 +48,11 @@ COLOR_SPACES = [
 
 BLEND_MODES = [
     "Normal",
+    "Multiply",
+    "Screen",
+    "Overlay",
+    "Hard Light",
+    "Soft Light",
     # TODO: ...
 ]
 
@@ -52,7 +62,7 @@ BLEND_MODES = [
     title="Image Blend",
     tags=["image", "blend", "layer", "alpha", "composite"],
     category="image",
-    version="1.0.0",
+    version="1.0.1",
 )
 class ImageBlendInvocation(BaseInvocation):
     """Blend two images together"""
@@ -87,7 +97,7 @@ class ImageBlendInvocation(BaseInvocation):
         alpha_upper, alpha_lower = image_upper.getchannel("A"), image_base.getchannel("A")
         image_upper, image_base = image_upper.convert("RGB"), image_base.convert("RGB")
 
-        # Now do alpha compositing and any other filtering
+        # Prepare tensors to compute blend
         upper_tensor = tensor_from_pil_image(image_upper, normalize=False)
         lower_tensor = tensor_from_pil_image(image_base, normalize=False)
         alpha_upper_tensor = tensor_from_pil_image(alpha_upper, normalize=False)[0,:,:]
@@ -96,6 +106,64 @@ class ImageBlendInvocation(BaseInvocation):
         upper_tensor, lower_tensor = linear_srgb_from_srgb(upper_tensor), linear_srgb_from_srgb(lower_tensor)
 
         alpha_upper_tensor = torch.mul(alpha_upper_tensor, self.opacity)
+
+        # Apply blending mode
+        if self.blend_mode == "Multiply":
+            upper_tensor = torch.mul(lower_tensor, upper_tensor)
+        elif self.blend_mode == "Screen":
+            upper_tensor = torch.add(
+                torch.mul(
+                    torch.mul(torch.add(torch.mul(lower_tensor, -1.), 1.),
+                              torch.add(torch.mul(upper_tensor, -1), 1.)),
+                    -1.
+                ),
+                1.
+            )
+        elif (self.blend_mode == "Overlay") or (self.blend_mode == "Hard Light"):
+            subject_of_cond_tensor = lower_tensor if (self.blend_mode == "Overlay") else upper_tensor
+            upper_tensor = torch.where(
+                torch.lt(subject_of_cond_tensor, 0.5),
+                torch.mul(torch.mul(lower_tensor, upper_tensor), 2.),
+                torch.add(
+                    torch.mul(
+                        torch.mul(
+                            torch.mul(torch.add(torch.mul(lower_tensor, -1.), 1.),
+                                      torch.add(torch.mul(upper_tensor, -1), 1.)),
+                            2.
+                        ),
+                        -1.
+                    ),
+                    1.
+                )
+            )
+        elif self.blend_mode == "Soft Light":
+            g_tensor = torch.where(
+                torch.le(lower_tensor, 0.25),
+                torch.mul(torch.add(torch.mul(torch.sub(torch.mul(lower_tensor, 16.), 12.), lower_tensor), 4.), lower_tensor),
+                torch.sqrt(lower_tensor)
+            )
+            upper_tensor = torch.where(
+                torch.le(upper_tensor, 0.5),
+                torch.sub(
+                    lower_tensor,
+                    torch.mul(
+                        torch.mul(
+                            torch.add(torch.mul(lower_tensor, -1.), 1.),
+                            lower_tensor
+                        ),
+                        torch.add(torch.mul(torch.mul(upper_tensor, 2.), -1.), 1.)
+                    )
+                ),
+                torch.add(
+                    lower_tensor,
+                    torch.mul(
+                        torch.sub(torch.mul(upper_tensor, 2.), 1.),
+                        torch.sub(g_tensor, lower_tensor)
+                    )
+                )
+            )
+
+        # Perform alpha compositing
         alpha_tensor = torch.add(
             alpha_upper_tensor, torch.mul(alpha_lower_tensor, torch.add(torch.mul(alpha_upper_tensor, -1.), 1.))
         )
@@ -1088,3 +1156,90 @@ def okhsl_from_srgb(rgb_tensor, steps=1, steps_outer=1):
     l_tensor = toe(lab_tensor[0,:,:])
 
     return torch.stack([h_tensor, s_tensor, l_tensor])
+
+
+def hsl_from_srgb(rgb_tensor):
+    c_max_tensor = rgb_tensor.max(0).values
+    c_min_tensor = rgb_tensor.min(0).values
+    c_sum_tensor = torch.add(c_max_tensor, c_min_tensor)
+    c_range_tensor = torch.sub(c_max_tensor, c_min_tensor)
+    l_tensor = torch.div(c_sum_tensor, 2.0)
+    s_tensor = torch.where(
+        torch.eq(c_max_tensor, c_min_tensor),
+        0.0,
+        torch.where(
+            torch.lt(l_tensor, 0.5),
+            torch.div(c_range_tensor, c_sum_tensor),
+            torch.div(c_range_tensor, torch.add(torch.mul(torch.add(c_max_tensor, c_min_tensor), -1.), 2.))
+        )
+    )
+    rgb_c_tensor = torch.div(torch.sub(c_max_tensor.expand(rgb_tensor.shape), rgb_tensor),
+                             c_range_tensor.expand(rgb_tensor.shape))
+    h_tensor = torch.where(
+        torch.eq(c_max_tensor, c_min_tensor),
+        0.0,
+        torch.where(
+            torch.eq(rgb_tensor[0,:,:], c_max_tensor),
+            torch.sub(rgb_c_tensor[2,:,:], rgb_c_tensor[1,:,:]),
+            torch.where(
+                torch.eq(rgb_tensor[1,:,:], c_max_tensor),
+                torch.add(torch.sub(rgb_c_tensor[0,:,:], rgb_c_tensor[2,:,:]), 2.),
+                torch.add(torch.sub(rgb_c_tensor[1,:,:], rgb_c_tensor[0,:,:]), 4.)
+            )
+        )
+    )
+    h_tensor = torch.remainder(torch.div(h_tensor, 6.), 1.)
+    return torch.stack([h_tensor, s_tensor, l_tensor])
+
+
+def srgb_from_hsl(hsl_tensor):
+    rgb_tensor = torch.empty(hsl_tensor.shape)
+    s_0_mask = torch.eq(hsl_tensor[1,:,:], 0.)
+    s_ne0_mask = torch.logical_not(s_0_mask)
+    rgb_tensor = torch.where(
+        s_0_mask.expand(rgb_tensor.shape),
+        hsl_tensor[2,:,:].expand(hsl_tensor.shape),
+        rgb_tensor
+    )
+    m2_tensor = torch.where(
+        torch.le(hsl_tensor[2,:,:], 0.5),
+        torch.mul(hsl_tensor[2,:,:], torch.add(hsl_tensor[1,:,:], 1.)),
+        torch.sub(torch.add(hsl_tensor[2,:,:], hsl_tensor[1,:,:]),
+                  torch.mul(hsl_tensor[2,:,:], hsl_tensor[1,:,:]))
+    )
+    m1_tensor = torch.sub(torch.mul(hsl_tensor[2,:,:], 2.), m2_tensor)
+
+    return torch.stack(
+        [
+            hsl_values(m1_tensor, m2_tensor, torch.add(hsl_tensor[0,:,:], 1./3.)),
+            hsl_values(m1_tensor, m2_tensor, hsl_tensor[0,:,:]),
+            hsl_values(m1_tensor, m2_tensor, torch.sub(hsl_tensor[0,:,:], 1./3.))
+        ]
+    )
+
+
+def hsl_values(m1_tensor, m2_tensor, h_tensor):
+    h_tensor = torch.remainder(h_tensor, 1.)
+    result_tensor = m1_tensor.clone()
+    result_tensor = torch.where(
+        torch.lt(h_tensor, 1./6.),
+        torch.add(m1_tensor,
+                  torch.mul(torch.sub(m2_tensor, m1_tensor),
+                            torch.mul(h_tensor, 6.))),
+        torch.where(
+            torch.lt(h_tensor, 0.5),
+            m2_tensor,
+            torch.where(
+                torch.lt(h_tensor, 2./3.),
+                torch.add(m1_tensor,
+                          torch.mul(
+                              torch.sub(m2_tensor, m1_tensor),
+                              torch.mul(torch.add(torch.mul(h_tensor, -1.), 2./3.),
+                                        6.)
+                          )
+                ),
+                result_tensor
+            )
+        )
+    )
+    return result_tensor
