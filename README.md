@@ -1,5 +1,4 @@
 ![composition pack main image](https://raw.githubusercontent.com/dwringer/composition-nodes/main/composition_pack.jpg)
-![composition nodes usage graph](https://raw.githubusercontent.com/dwringer/composition-nodes/main/composition_nodes_usage.jpg)
 
 ### Installation:
 
@@ -61,3 +60,6 @@ Create a white on black (or black on white) text image for use with controlnets 
 
 Currently this only generates one line of text, but it can be layered with other images using the Image Compositor node or any other such tool.
 
+### Example usage:
+
+![composition nodes usage graph](https://raw.githubusercontent.com/dwringer/composition-nodes/main/composition_nodes_usage.jpg)
