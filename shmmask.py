@@ -43,130 +43,11 @@ class ShadowsHighlightsMidtonesMasksOutput(BaseInvocationOutput):
 
 
 @invocation(
-    "lab_channel",
-    title="Extract CIELAB Channel",
-    tags=["image", "channel", "mask", "cielab", "lab"],
-    category="image",
-    version="1.0.0",    
-)
-class ExtractCIELABChannelInvocation(BaseInvocation):
-    """Get a selected channel from L*a*b* color space"""
-
-    image: ImageField = InputField(description="Image from which to get channel")
-    channel: Literal[tuple(CIELAB_CHANNELS)] = InputField(default=CIELAB_CHANNELS[0], description="Channel to extract")
-
-    def invoke(self, context: InvocationContext) -> ImageOutput:
-        image_in = context.services.images.get_pil_image(self.image.image_name)
-
-        image_out = image_in.convert("LAB")
-        image_out = image_out.getchannel(self.channel)
-        
-        image_dto = context.services.images.create(
-            image=image_out,
-            image_origin=ResourceOrigin.INTERNAL,
-            image_category=ImageCategory.GENERAL,
-            node_id=self.id,
-            session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate
-        )
-        return ImageOutput(
-            image=ImageField(image_name=image_dto.image_name),
-            width=image_dto.width,
-            height=image_dto.height
-        )
-        
-
-@invocation(
-    "img_squash_lab_channel",
-    title="Squash Image Channel (CIELAB)",
-    tags=["image", "hue", "chroma", "accessibility"],
-    category="image",
-    version="1.0.0",
-)
-class ImageSquashLABChannelInvocation(BaseInvocation):
-    """Adjusts the Hue of an image by rotating it in CIELAB L*C*h polar coordinates"""
-    
-    image: ImageField = InputField(description="The image to adjust")
-    squash_a_pos: bool = InputField(default=False, description="Squash a* channel +")
-    squash_a_neg: bool = InputField(default=False, description="Squash a* channel -")
-    squash_b_pos: bool = InputField(default=False, description="Squash b* channel +")
-    squash_b_neg: bool = InputField(default=False, description="Squash b* channel -")
-
-    def invoke(self, context: InvocationContext) -> ImageOutput:
-        image_in = context.services.images.get_pil_image(self.image.image_name)
-        
-        image_out = image_in.convert("LAB")
-        channel_l = image_out.getchannel("L")
-        channel_a = image_out.getchannel("A")
-        channel_b = image_out.getchannel("B")
-
-        l_tensor = image_resized_to_grid_as_tensor(channel_l, normalize=False)
-        a_tensor = image_resized_to_grid_as_tensor(channel_a, normalize=True)
-        b_tensor = image_resized_to_grid_as_tensor(channel_b, normalize=True)
-
-        if (not self.squash_a_pos) and (not self.squash_a_neg):
-            pass
-        else:
-            if self.squash_a_pos and self.squash_a_neg:
-                a_tensor = torch.zeros(a_tensor.shape)
-            else:
-                neutral_tensor = torch.zeros(a_tensor.shape)
-                mask = None
-                if self.squash_a_pos:
-                    mask = torch.gt(a_tensor, 0.0)
-                else:  # self.squash_a_neg (implied):
-                    mask = torch.lt(a_tensor, 0.0)
-                a_tensor[mask] = neutral_tensor[mask]
-        if (not self.squash_b_pos) and (not self.squash_b_neg):
-            pass
-        else:
-            if self.squash_b_pos and self.squash_b_neg:
-                b_tensor = torch.zeros(b_tensor.shape)
-            else:
-                neutral_tensor = torch.zeros(b_tensor.shape)
-                mask = None
-                if self.squash_b_pos:
-                    mask = torch.gt(b_tensor, 0.0)
-                else:  # self.squash_b_neg (implied):
-                    mask = torch.lt(b_tensor, 0.0)
-                b_tensor[mask] = neutral_tensor[mask]
-
-        # -1..1 -> 0..1 for all elts of a, b
-        a_tensor = torch.div(torch.add(a_tensor, 1.0), 2.0)
-        b_tensor = torch.div(torch.add(b_tensor, 1.0), 2.0)
-                
-        # if not self.squash_b:
-        #     b_tensor = torch.div(torch.add(b_tensor, 1.0), 2.0)
-        # else:
-        #     b_tensor = torch.mul(torch.ones(b_tensor.shape), 0.5)
-
-        l_img = pil_image_from_tensor(l_tensor)
-        a_img = pil_image_from_tensor(a_tensor)
-        b_img = pil_image_from_tensor(b_tensor)
-        
-        image_out = PIL.Image.merge("LAB", (l_img, a_img, b_img))
-        image_out = image_out.convert("RGB")
-        image_dto = context.services.images.create(
-            image=image_out,
-            image_origin=ResourceOrigin.INTERNAL,
-            image_category=ImageCategory.GENERAL,
-            node_id=self.id,
-            session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate
-        )
-        return ImageOutput(
-            image=ImageField(image_name=image_dto.image_name),
-            width=image_dto.width,
-            height=image_dto.height
-        )
-
-    
-@invocation(
     "ealightness",
     title="Equivalent Achromatic Lightness",
     tags=["image", "channel", "mask", "cielab", "lab"],
     category="image",
-    version="1.0.0",
+    version="1.0.1",
 )
 class EquivalentAchromaticLightnessInvocation(BaseInvocation):
     """Calculate Equivalent Achromatic Lightness from image"""
@@ -230,7 +111,7 @@ class EquivalentAchromaticLightnessInvocation(BaseInvocation):
    
 @invocation(
     "shmmask",
-    title="Shadows/Highlights/Midtones Mask from Image",
+    title="Shadows/Highlights/Midtones",
     tags=["mask", "image", "shadows", "highlights", "midtones"],
     category="image",
     version="1.0.0",
@@ -258,9 +139,9 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
             mask = torch.logical_and(mask_hi, mask_lo)
             masked = img_tensor[mask]
             if 0 < masked.numel():
-              vmax, vmin = masked.max(), masked.min()
+              vmax, vmin = max(threshold_h, threshold_s), min(threshold_h, threshold_s)  # masked.max(), masked.min()
               if (vmax == vmin):
-                  img_tensor[mask] = 0.5 * ones_tensor
+                  img_tensor[mask] = vmin * ones_tensor
               else:
                   img_tensor[mask] = torch.sub(1.0, (img_tensor[mask] - vmin) / (vmax - vmin)) # hi is 0
 
@@ -284,9 +165,9 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
             mask = torch.logical_and(mask_hi, mask_lo)
             masked = img_tensor[mask]
             if 0 < masked.numel():
-                vmax, vmin = masked.max(), masked.min()
+                vmax, vmin = max(threshold_h, threshold_s), min(threshold_h, threshold_s)  # masked.max(), masked.min()
                 if (vmax == vmin):
-                    img_tensor[mask] = 0.5 * ones_tensor
+                    img_tensor[mask] = vmin * ones_tensor
                 else:
                     img_tensor[mask] = (img_tensor[mask] - vmin) / (vmax - vmin) # lo is 0
 
@@ -318,18 +199,22 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
         if not (h_threshold_hard == h_threshold_soft):
             masked = img_tensor[mask_top]
             if 0 < masked.numel():
-                vmax_top, vmin_top = masked.max(), masked.min()
+                vmax_top, vmin_top = (
+                    max(h_threshold_hard, h_threshold_soft), min(h_threshold_hard, h_threshold_soft)
+                )
                 if (vmax_top == vmin_top):
-                    img_tensor[mask_top] = 0.5 * ones_tensor
+                    img_tensor[mask_top] = vmin_top * ones_tensor
                 else:
                     img_tensor[mask_top] = (img_tensor[mask_top] - vmin_top) / (vmax_top - vmin_top) # hi is 1
             
         if not (s_threshold_hard == s_threshold_soft):
             masked = img_tensor[mask_bottom]
             if 0 < masked.numel():
-                vmax_bottom, vmin_bottom = masked.max(), masked.min()
+                vmax_bottom, vmin_bottom = (
+                    max(s_threshold_hard, s_threshold_soft), min(s_threshold_hard, s_threshold_soft)
+                )
                 if (vmax_bottom == vmin_bottom):
-                    img_tensor[mask_bottom] = 0.5 * ones_tensor
+                    img_tensor[mask_bottom] = vmin_bottom * ones_tensor
                 else:
                     img_tensor[mask_bottom] = torch.sub(1.0, (img_tensor[mask_bottom] - vmin_bottom) / (vmax_bottom - vmin_bottom)) # lo is 1
 

@@ -34,7 +34,7 @@ COMBINE_MODES: list = [
     title="Text to Mask Advanced (Clipseg)",
     tags=["image", "mask", "clip", "clipseg", "txt2mask", "advanced"],
     category="image",
-    version="1.0.1",
+    version="1.0.2",
 )
 class TextToMaskClipsegAdvancedInvocation(BaseInvocation):
     """Uses the Clipseg model to generate an image mask from a text prompt"""
@@ -81,7 +81,7 @@ class TextToMaskClipsegAdvancedInvocation(BaseInvocation):
             if 0 < masked.numel():
                 vmax, vmin = max(threshold_h, threshold_s), min(threshold_h, threshold_s)
                 if (vmax == vmin):
-                    img_tensor[mask] = 0.5 * ones_tensor[mask]
+                    img_tensor[mask] = vmin * ones_tensor[mask]
                 elif self.invert_output:
                     img_tensor[mask] = torch.sub(1.0, (img_tensor[mask] - vmin) / (vmax - vmin))
                 else:
@@ -175,7 +175,7 @@ class TextToMaskClipsegAdvancedInvocation(BaseInvocation):
     title="Image Value Thresholds",
     tags=["image", "mask", "value", "threshold"],
     category="image",
-    version="1.0.1"
+    version="1.0.2"
 )
 class ImageValueThresholdsInvocation(BaseInvocation):
     """Clip image to pure black/white past specified thresholds"""
@@ -215,7 +215,7 @@ class ImageValueThresholdsInvocation(BaseInvocation):
                 if self.renormalize_values:
                     vmax, vmin = max(threshold_h, threshold_s), min(threshold_h, threshold_s)
                     if (vmax == vmin):
-                        img_tensor[mask] = 0.5 * ones_tensor[mask]
+                        img_tensor[mask] = vmin * ones_tensor[mask]
                     elif self.invert_output:
                         img_tensor[mask] = torch.sub(1.0, (img_tensor[mask] - vmin) / (vmax - vmin))
                     else:

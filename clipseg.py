@@ -26,7 +26,7 @@ from invokeai.backend.stable_diffusion.diffusers_pipeline import (
     title="Text to Mask (Clipseg)",
     tags=["image", "mask", "clip", "clipseg", "txt2mask"],
     category="image",
-    version="1.0.1",
+    version="1.0.2",
 )
 class TextToMaskClipsegInvocation(BaseInvocation):
     """Uses the Clipseg model to generate an image mask from a text prompt"""
@@ -72,7 +72,7 @@ class TextToMaskClipsegInvocation(BaseInvocation):
             if 0 < masked.numel():
                 vmax, vmin = max(threshold_h, threshold_s), min(threshold_h, threshold_s)
                 if (vmax == vmin):
-                    img_tensor[mask] = 0.5 * ones_tensor[mask]
+                    img_tensor[mask] = vmin * ones_tensor[mask]
                 elif self.invert_output:
                     img_tensor[mask] = torch.sub(1.0, (img_tensor[mask] - vmin) / (vmax - vmin))
                 else:
