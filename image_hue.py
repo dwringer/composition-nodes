@@ -1,14 +1,8 @@
 # Copyright (c) 2023 Darren Ringer <dwringer@gmail.com>
-
 # Parts based on Oklab: Copyright (c) 2021 Björn Ottosson <https://bottosson.github.io/>
-
-# HSL conversion based on CPython source: Copyright (c) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
-#                                         2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022,
-#                                         2023 Python Software Foundation; All Rights Reserved
-
 import os.path
 from math import pi as PI
-from typing import Literal
+from typing import Literal, Optional
 
 import PIL.Image, PIL.ImageOps
 import torch
@@ -30,11 +24,15 @@ from invokeai.backend.stable_diffusion.diffusers_pipeline import (
 )
 
 
+MAX_FLOAT = torch.finfo(torch.tensor(1.).dtype).max
+
+
 def tensor_from_pil_image(img, normalize=True):
     return image_resized_to_grid_as_tensor(img, normalize=normalize, multiple_of=1)
 
+def remove_nans(tensor, replace_with=MAX_FLOAT):
+    return torch.where(torch.isnan(tensor), replace_with, tensor)
 
-MAX_FLOAT = torch.finfo(torch.tensor(1.).dtype).max
 
 COLOR_SPACES = [
     "HSV / HSL / RGB",
@@ -50,10 +48,24 @@ BLEND_MODES = [
     "Normal",
     "Multiply",
     "Screen",
-    "Overlay",
-    "Hard Light",
-    "Soft Light",
-    # TODO: ...
+#    "Overlay",
+#    "Hard Light",
+#    "Soft Light",
+#    "Color Dodge",
+    "Linear Dodge (Add)",
+    "Divide",
+#    "Linear Burn",
+#    "Color Burn",
+#    "Vivid Light",
+#    "Linear Light",
+    "Subtract",
+#    "Difference",
+    "Darken Only",
+    "Lighten Only",
+    "Hue",
+    "Saturation",
+    "Color",
+    "Luminosity",
 ]
 
 
@@ -62,7 +74,7 @@ BLEND_MODES = [
     title="Image Blend",
     tags=["image", "blend", "layer", "alpha", "composite"],
     category="image",
-    version="1.0.1",
+    version="1.0.2",
 )
 class ImageBlendInvocation(BaseInvocation):
     """Blend two images together"""
@@ -71,13 +83,21 @@ class ImageBlendInvocation(BaseInvocation):
     layer_base: ImageField = InputField(description="The bottom image to blend")
     blend_mode: Literal[tuple(BLEND_MODES)] = InputField(default=BLEND_MODES[0], description="Available blend modes")
     opacity: float = InputField(default=1., description="Desired opacity of the upper layer")
+    mask: Optional[ImageField] = InputField(default=None, description="Optional mask, used to restrict areas from blending")
     fit_to_width: bool = InputField(default=False, description="Scale upper layer to fit base width")
     fit_to_height: bool = InputField(default=True,  description="Scale upper layer to fit base height")
+    adaptive_gamut: float = InputField(
+        default=0.0, description="If > 0, higher values sacrifice lightness to compress gamut to RGB"
+    )
+    high_precision: bool = InputField(default=True, description="Use more steps in computing gamut when possible")
 
     def invoke(self, context: InvocationContext) -> ImageOutput:
         image_upper = context.services.images.get_pil_image(self.layer_upper.image_name)
         image_base = context.services.images.get_pil_image(self.layer_base.image_name)
-
+        image_mask = None
+        if not (self.mask is None):
+            image_mask = context.services.images.get_pil_image(self.mask.image_name)
+        
         aspect_base = image_base.width / image_base.height
         aspect_upper = image_upper.width / image_upper.height
         if self.fit_to_width and self.fit_to_height:
@@ -102,68 +122,98 @@ class ImageBlendInvocation(BaseInvocation):
         lower_tensor = tensor_from_pil_image(image_base, normalize=False)
         alpha_upper_tensor = tensor_from_pil_image(alpha_upper, normalize=False)[0,:,:]
         alpha_lower_tensor = tensor_from_pil_image(alpha_lower, normalize=False)[0,:,:]
+        if not (self.mask is None):
+            mask_tensor = tensor_from_pil_image(image_mask.convert("L"), normalize=False)[0,:,:]
 
         upper_tensor, lower_tensor = linear_srgb_from_srgb(upper_tensor), linear_srgb_from_srgb(lower_tensor)
-
-        alpha_upper_tensor = torch.mul(alpha_upper_tensor, self.opacity)
 
         # Apply blending mode
         if self.blend_mode == "Multiply":
             upper_tensor = torch.mul(lower_tensor, upper_tensor)
         elif self.blend_mode == "Screen":
-            upper_tensor = torch.add(
-                torch.mul(
-                    torch.mul(torch.add(torch.mul(lower_tensor, -1.), 1.),
-                              torch.add(torch.mul(upper_tensor, -1), 1.)),
-                    -1.
-                ),
-                1.
+            upper_tensor = torch.add(torch.mul(torch.mul(torch.add(torch.mul(upper_tensor, -1.), 1.),
+                                                         torch.add(torch.mul(lower_tensor, -1.), 1.)),
+                                               -1.),
+                                     1.)
+        elif self.blend_mode == "Linear Dodge (Add)":
+            upper_tensor = torch.add(lower_tensor, upper_tensor)
+        elif self.blend_mode == "Divide":
+            upper_tensor = torch.div(lower_tensor, upper_tensor)
+        elif self.blend_mode == "Subtract":
+            upper_tensor = torch.sub(lower_tensor, upper_tensor)
+        elif self.blend_mode == "Darken Only":
+            upper_tensor = torch.stack(
+                [
+                    torch.min(upper_tensor[0,:,:], lower_tensor[0,:,:]),
+                    torch.min(upper_tensor[1,:,:], lower_tensor[1,:,:]),
+                    torch.min(upper_tensor[2,:,:], lower_tensor[2,:,:])
+                ]
             )
-        elif (self.blend_mode == "Overlay") or (self.blend_mode == "Hard Light"):
-            subject_of_cond_tensor = lower_tensor if (self.blend_mode == "Overlay") else upper_tensor
-            upper_tensor = torch.where(
-                torch.lt(subject_of_cond_tensor, 0.5),
-                torch.mul(torch.mul(lower_tensor, upper_tensor), 2.),
-                torch.add(
-                    torch.mul(
-                        torch.mul(
-                            torch.mul(torch.add(torch.mul(lower_tensor, -1.), 1.),
-                                      torch.add(torch.mul(upper_tensor, -1), 1.)),
-                            2.
-                        ),
-                        -1.
-                    ),
-                    1.
-                )
+        elif self.blend_mode == "Lighten Only":
+            upper_tensor = torch.stack(
+                [
+                    torch.max(upper_tensor[0,:,:], lower_tensor[0,:,:]),
+                    torch.max(upper_tensor[1,:,:], lower_tensor[1,:,:]),
+                    torch.max(upper_tensor[2,:,:], lower_tensor[2,:,:])
+                ]
             )
-        elif self.blend_mode == "Soft Light":
-            g_tensor = torch.where(
-                torch.le(lower_tensor, 0.25),
-                torch.mul(torch.add(torch.mul(torch.sub(torch.mul(lower_tensor, 16.), 12.), lower_tensor), 4.), lower_tensor),
-                torch.sqrt(lower_tensor)
+        elif self.blend_mode in ["Hue", "Saturation", "Color", "Luminosity"]:
+            upper_oklab_tensor = oklab_from_linear_srgb(upper_tensor)
+            lower_oklab_tensor = oklab_from_linear_srgb(lower_tensor)
+
+            upper_ch_tensor = torch.stack(
+                [
+                    torch.sqrt(torch.add(torch.pow(upper_oklab_tensor[1,:,:], 2.), torch.pow(upper_oklab_tensor[2,:,:], 2.))),
+                    torch.atan2(upper_oklab_tensor[2,:,:], upper_oklab_tensor[1,:,:])
+                ]
             )
-            upper_tensor = torch.where(
-                torch.le(upper_tensor, 0.5),
-                torch.sub(
-                    lower_tensor,
-                    torch.mul(
-                        torch.mul(
-                            torch.add(torch.mul(lower_tensor, -1.), 1.),
-                            lower_tensor
-                        ),
-                        torch.add(torch.mul(torch.mul(upper_tensor, 2.), -1.), 1.)
-                    )
-                ),
-                torch.add(
-                    lower_tensor,
-                    torch.mul(
-                        torch.sub(torch.mul(upper_tensor, 2.), 1.),
-                        torch.sub(g_tensor, lower_tensor)
-                    )
-                )
+            lower_ch_tensor = torch.stack(
+                [
+                    torch.sqrt(torch.add(torch.pow(lower_oklab_tensor[1,:,:], 2.), torch.pow(lower_oklab_tensor[2,:,:], 2.))),
+                    torch.atan2(lower_oklab_tensor[2,:,:], lower_oklab_tensor[1,:,:])
+                ]
             )
 
-        # Perform alpha compositing
+            if self.blend_mode == "Hue":  # l, c: lower / h: upper
+                upper_oklab_tensor = torch.stack(
+                    [
+                        lower_oklab_tensor[0,:,:],
+                        torch.mul(lower_ch_tensor[0,:,:], torch.cos(upper_ch_tensor[1,:,:])),
+                        torch.mul(lower_ch_tensor[0,:,:], torch.sin(upper_ch_tensor[1,:,:])),
+                    ]
+                )
+            elif self.blend_mode == "Saturation":  # l, h: lower / c: upper
+                upper_oklab_tensor = torch.stack(
+                    [
+                        lower_oklab_tensor[0,:,:],
+                        torch.mul(upper_ch_tensor[0,:,:], torch.cos(lower_ch_tensor[1,:,:])),
+                        torch.mul(upper_ch_tensor[0,:,:], torch.sin(lower_ch_tensor[1,:,:])),
+                    ]
+                )
+            elif self.blend_mode == "Color":  # l: lower / c, h: upper
+                upper_oklab_tensor = torch.stack(
+                    [
+                        lower_oklab_tensor[0,:,:],
+                        torch.mul(upper_ch_tensor[0,:,:], torch.cos(upper_ch_tensor[1,:,:])),
+                        torch.mul(upper_ch_tensor[0,:,:], torch.sin(upper_ch_tensor[1,:,:])),
+                    ]
+                )
+            elif self.blend_mode == "Luminosity":  # h, c: lower / l: upper
+                upper_oklab_tensor = torch.stack(
+                    [
+                        upper_oklab_tensor[0,:,:],
+                        torch.mul(lower_ch_tensor[0,:,:], torch.cos(lower_ch_tensor[1,:,:])),
+                        torch.mul(lower_ch_tensor[0,:,:], torch.sin(lower_ch_tensor[1,:,:])),
+                    ]
+                )
+
+            upper_tensor = linear_srgb_from_oklab(upper_oklab_tensor)
+
+        alpha_upper_tensor = torch.mul(alpha_upper_tensor, self.opacity)
+
+        if not (self.mask is None):
+            alpha_upper_tensor = torch.mul(alpha_upper_tensor, torch.add(torch.mul(mask_tensor, -1.), 1.))
+        
         alpha_tensor = torch.add(
             alpha_upper_tensor, torch.mul(alpha_lower_tensor, torch.add(torch.mul(alpha_upper_tensor, -1.), 1.))
         )
@@ -171,8 +221,11 @@ class ImageBlendInvocation(BaseInvocation):
                                            torch.mul(torch.mul(lower_tensor, alpha_lower_tensor),
                                                      torch.add(torch.mul(alpha_upper_tensor, -1.), 1.))),
                                  alpha_tensor)
-        
-        output_tensor = srgb_from_linear_srgb(output_tensor)
+
+        # To gamma corrected sRGB
+        output_tensor = srgb_from_linear_srgb(
+            output_tensor, alpha=self.adaptive_gamut, steps=(3 if self.high_precision else 1)
+        )
 
         output_tensor = torch.stack(
             [
@@ -441,8 +494,8 @@ class AdjustImageHuePlusInvocation(BaseInvocation):
         )
 
 
-def srgb_from_linear_srgb(linear_srgb_tensor, alpha=0.05, steps=1):
-    if 0 < alpha:
+def srgb_from_linear_srgb(linear_srgb_tensor, alpha=0., steps=1):
+    if 0. < alpha:
         linear_srgb_tensor = gamut_clip_tensor(linear_srgb_tensor, alpha=alpha, steps=steps)
     linear_srgb_tensor = linear_srgb_tensor.clamp(0., 1.)
     mask = torch.lt(linear_srgb_tensor, 0.0404482362771082 / 12.92)
@@ -1158,6 +1211,10 @@ def okhsl_from_srgb(rgb_tensor, steps=1, steps_outer=1):
     return torch.stack([h_tensor, s_tensor, l_tensor])
 
 
+# HSL conversion based on CPython source: Copyright (c) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
+#                                         2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022,
+#                                         2023 Python Software Foundation; All Rights Reserved
+# These functions are currently not used.
 def hsl_from_srgb(rgb_tensor):
     c_max_tensor = rgb_tensor.max(0).values
     c_min_tensor = rgb_tensor.min(0).values
