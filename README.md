@@ -26,7 +26,13 @@ Output up to four prompt masks combined with logical "and", logical "or", or as 
 
 ### Image Blend
 
-Perform a layered blend of two images using alpha compositing. Opacity of top layer is selectable.
+Perform a layered blend of two images using alpha compositing. Opacity of top layer is selectable, and a mask image may also be used. There are currently 23 blend modes supported and 8 color space modes. Four of the blend modes - Hue, Saturation, Color, and Luminosity - are restricted to only 6 of the color space modes: RGB and Linear RGB will convert to HSL for those blend modes. Several of the other blend modes only operate on the lightness channel of non-RGB color space modes.
+
+Blend modes available: 
+Normal, Lighten Only, Darken Only, Lighten Only (EAL), Darken Only (EAL), Hue, Saturation, Color, Luminosity, Linear Dodge (Add), Subtract, Multiply, Divide, Screen, Overlay, Linear Burn, Difference, Hard Light, Soft Light, Vivid Light, Linear Light, Color Burn, Color Dodge
+
+Color space modes available:
+RGB, Linear RGB, HSL, HSV, Okhsl, Okhsv, Oklch (Oklab), LCh (CIELab)
 
 ### Image Compositor
 

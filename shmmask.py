@@ -1,6 +1,8 @@
 from math import sqrt, pi as PI
 from typing import Literal
 
+import cv2
+import numpy
 import PIL.Image
 import torch
 from torchvision.transforms.functional import to_pil_image as pil_image_from_tensor
@@ -114,16 +116,48 @@ class EquivalentAchromaticLightnessInvocation(BaseInvocation):
     title="Shadows/Highlights/Midtones",
     tags=["mask", "image", "shadows", "highlights", "midtones"],
     category="image",
-    version="1.0.1",
+    version="1.0.2",
 )
 class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
     """Extract a Shadows/Highlights/Midtones mask from an image"""
 
     image: ImageField = InputField(description="Image from which to extract mask")
+    invert_output: bool = InputField(
+        default=True, description="Off: white on black / On: black on white"
+    )
     highlight_threshold: float = InputField(default=0.75, description="Threshold beyond which mask values will be at extremum")
     upper_mid_threshold: float = InputField(default=0.7, description="Threshold to which to extend mask border by 0..1 gradient")
     lower_mid_threshold: float = InputField(default=0.3, description="Threshold to which to extend mask border by 0..1 gradient")
     shadow_threshold: float = InputField(default=0.25, description="Threshold beyond which mask values will be at extremum")
+    mask_expand_or_contract: int = InputField(default=0, description="Pixels to grow (or shrink) the mask areas")
+    mask_blur: float = InputField(default=0.0, description="Gaussian blur radius to apply to the masks")
+
+    def expand_or_contract(self, image_in):
+        image_out = numpy.array(image_in)
+        expand_radius = self.mask_expand_or_contract
+        expand_fn = None
+        if 0 < self.mask_expand_or_contract:
+            if self.invert_output:
+                expand_fn = cv2.erode
+            else:
+                expand_fn = cv2.dilate
+        else:
+            expand_radius *= -1
+            if self.invert_output:
+                expand_fn = cv2.dilate
+            else:
+                expand_fn = cv2.erode
+        image_out = expand_fn(
+            image_out,
+            numpy.uint8(
+                numpy.array(
+                    [[i**2 + j**2 for i in range(-expand_radius, expand_radius + 1)]
+                     for j in range(-expand_radius, expand_radius + 1)]
+                ) < (expand_radius + 1)**2,
+            ),
+            iterations=1
+        )
+        return PIL.Image.fromarray(image_out, mode="L")
 
     def get_highlights_mask(self, image_tensor):
         img_tensor = image_tensor.clone()
@@ -139,7 +173,7 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
             mask = torch.logical_and(mask_hi, mask_lo)
             masked = img_tensor[mask]
             if 0 < masked.numel():
-              vmax, vmin = max(threshold_h, threshold_s), min(threshold_h, threshold_s)  # masked.max(), masked.min()
+              vmax, vmin = max(threshold_h, threshold_s), min(threshold_h, threshold_s)
               if (vmax == vmin):
                   img_tensor[mask] = vmin * ones_tensor
               else:
@@ -148,7 +182,7 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
         img_tensor[ones_mask] = ones_tensor[ones_mask]
         img_tensor[zeros_mask] = zeros_tensor[zeros_mask]
 
-        return img_tensor
+        return img_tensor if not self.invert_output else torch.sub(1., img_tensor)
 
 
     def get_shadows_mask(self, image_tensor):
@@ -165,7 +199,7 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
             mask = torch.logical_and(mask_hi, mask_lo)
             masked = img_tensor[mask]
             if 0 < masked.numel():
-                vmax, vmin = max(threshold_h, threshold_s), min(threshold_h, threshold_s)  # masked.max(), masked.min()
+                vmax, vmin = max(threshold_h, threshold_s), min(threshold_h, threshold_s)
                 if (vmax == vmin):
                     img_tensor[mask] = vmin * ones_tensor
                 else:
@@ -174,7 +208,7 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
         img_tensor[ones_mask] = ones_tensor[ones_mask]
         img_tensor[zeros_mask] = zeros_tensor[zeros_mask]
 
-        return img_tensor
+        return img_tensor if not self.invert_output else torch.sub(1., img_tensor)
 
 
     def get_midtones_mask(self, image_tensor):
@@ -222,7 +256,7 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
         img_tensor[highlight_ones_mask] = ones_tensor[highlight_ones_mask]
         img_tensor[shadows_ones_mask] = ones_tensor[shadows_ones_mask]
 
-        return img_tensor
+        return img_tensor if not self.invert_output else torch.sub(1., img_tensor)
 
 
     def invoke(self, context: InvocationContext) -> ShadowsHighlightsMidtonesMasksOutput:
@@ -231,6 +265,13 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
             image_in = image_in.convert("L")
         image_tensor = image_resized_to_grid_as_tensor(image_in, normalize=False)
         h_image_out = pil_image_from_tensor(self.get_highlights_mask(image_tensor), mode="L")
+        if self.mask_expand_or_contract != 0:
+            h_image_out = self.expand_or_contract(h_image_out)
+        
+        if 0 < self.mask_blur:
+            h_image_out = h_image_out.filter(
+                PIL.ImageFilter.GaussianBlur(radius=self.mask_blur)
+            )
         h_image_dto = context.services.images.create(
             image=h_image_out,
             image_origin=ResourceOrigin.INTERNAL,
@@ -240,6 +281,13 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
             is_intermediate=self.is_intermediate
         )
         m_image_out = pil_image_from_tensor(self.get_midtones_mask(image_tensor), mode="L")
+        if self.mask_expand_or_contract != 0:
+            m_image_out = self.expand_or_contract(m_image_out)
+        
+        if 0 < self.mask_blur:
+            m_image_out = m_image_out.filter(
+                PIL.ImageFilter.GaussianBlur(radius=self.mask_blur)
+            )
         m_image_dto = context.services.images.create(
             image=m_image_out,
             image_origin=ResourceOrigin.INTERNAL,
@@ -249,6 +297,12 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
             is_intermediate=self.is_intermediate
         )
         s_image_out = pil_image_from_tensor(self.get_shadows_mask(image_tensor), mode="L")
+        if self.mask_expand_or_contract != 0:
+            s_image_out = self.expand_or_contract(s_image_out)
+        if 0 < self.mask_blur:
+            s_image_out = s_image_out.filter(
+                PIL.ImageFilter.GaussianBlur(radius=self.mask_blur)
+            )
         s_image_dto = context.services.images.create(
             image=s_image_out,
             image_origin=ResourceOrigin.INTERNAL,
