@@ -1,7 +1,6 @@
 # TODO: Improve blend modes
 # TODO: Add nodes like Hue Adjust for Saturation/Contrast/etc... ?
 # TODO: Continue implementing more blend modes/color spaces(?)
-# TODO: Adaptive clipping should work on lightness / hue modes, and wrap hues around(?)
 # TODO: Custom ICC profiles with PIL.ImageCms?
 # TODO: Blend multiple layers all crammed into a tensor(?) or list
 
@@ -97,7 +96,7 @@ BLEND_COLOR_SPACES = [
     title="Image Blend",
     tags=["image", "blend", "layer", "alpha", "composite"],
     category="image",
-    version="1.0.8",
+    version="1.0.9",
 )
 class ImageBlendInvocation(BaseInvocation):
     """Blend two images together, with optional opacity, mask, and blend modes"""
@@ -212,11 +211,9 @@ class ImageBlendInvocation(BaseInvocation):
 
     def prepare_tensors_from_images(
             self, image_upper, image_lower, mask_image=None,
-            required=["rgb", "hsv", "hsl", "lab", "lch", "oklab", "okhsl", "okhsv"]
+            required=["hsv", "hsl", "lch", "oklch", "okhsl", "okhsv", "l_eal"]
     ):
         """Convert image to the necessary image space representations for blend calculations"""
-
-        # TODO: - Don't compute every tensor unless required
 
         alpha_upper, alpha_lower = None, None
         if (image_upper.mode == "RGBA"):
@@ -236,61 +233,70 @@ class ImageBlendInvocation(BaseInvocation):
             if (not (image_lower.mode == "RGB")):
                 image_lower = image_lower.convert("RGB")
 
-        image_lab_upper, image_lab_lower = (
-            self.image_convert_with_xform(image_upper, "rgb", "lab"),
-            self.image_convert_with_xform(image_lower, "rgb", "lab")
-        )
+        image_lab_upper, image_lab_lower = None, None
+        upper_lab_tensor, lower_lab_tensor = None, None
+        upper_lch_tensor, lower_lch_tensor = None, None
+        if "lch" in required:
+            image_lab_upper, image_lab_lower = (
+                self.image_convert_with_xform(image_upper, "rgb", "lab"),
+                self.image_convert_with_xform(image_lower, "rgb", "lab")
+            )
 
-        upper_lab_tensor = torch.stack(
-            [
-                tensor_from_pil_image(image_lab_upper.getchannel("L"), normalize=False)[0,:,:],
-                tensor_from_pil_image(image_lab_upper.getchannel("A"), normalize=True)[0,:,:],
-                tensor_from_pil_image(image_lab_upper.getchannel("B"), normalize=True)[0,:,:]
-            ]
-        )
-        lower_lab_tensor = torch.stack(
-            [
-                tensor_from_pil_image(image_lab_lower.getchannel("L"), normalize=False)[0,:,:],
-                tensor_from_pil_image(image_lab_lower.getchannel("A"), normalize=True)[0,:,:],
-                tensor_from_pil_image(image_lab_lower.getchannel("B"), normalize=True)[0,:,:]
-            ]
-        )
-        upper_lch_tensor = torch.stack(
-            [
-                upper_lab_tensor[0,:,:],
-                torch.sqrt(torch.add(torch.pow(upper_lab_tensor[1,:,:], 2.0),
-                                     torch.pow(upper_lab_tensor[2,:,:], 2.0))),
-                torch.atan2(upper_lab_tensor[2,:,:], upper_lab_tensor[1,:,:])
-            ]
-        )
-        lower_lch_tensor = torch.stack(
-            [
-                lower_lab_tensor[0,:,:],
-                torch.sqrt(torch.add(torch.pow(lower_lab_tensor[1,:,:], 2.0),
-                                     torch.pow(lower_lab_tensor[2,:,:], 2.0))),
-                torch.atan2(lower_lab_tensor[2,:,:], lower_lab_tensor[1,:,:])
-            ]
-        )
+            upper_lab_tensor = torch.stack(
+                [
+                    tensor_from_pil_image(image_lab_upper.getchannel("L"), normalize=False)[0,:,:],
+                    tensor_from_pil_image(image_lab_upper.getchannel("A"), normalize=True)[0,:,:],
+                    tensor_from_pil_image(image_lab_upper.getchannel("B"), normalize=True)[0,:,:]
+                ]
+            )
+            lower_lab_tensor = torch.stack(
+                [
+                    tensor_from_pil_image(image_lab_lower.getchannel("L"), normalize=False)[0,:,:],
+                    tensor_from_pil_image(image_lab_lower.getchannel("A"), normalize=True)[0,:,:],
+                    tensor_from_pil_image(image_lab_lower.getchannel("B"), normalize=True)[0,:,:]
+                ]
+            )
+            upper_lch_tensor = torch.stack(
+                [
+                    upper_lab_tensor[0,:,:],
+                    torch.sqrt(torch.add(torch.pow(upper_lab_tensor[1,:,:], 2.0),
+                                         torch.pow(upper_lab_tensor[2,:,:], 2.0))),
+                    torch.atan2(upper_lab_tensor[2,:,:], upper_lab_tensor[1,:,:])
+                ]
+            )
+            lower_lch_tensor = torch.stack(
+                [
+                    lower_lab_tensor[0,:,:],
+                    torch.sqrt(torch.add(torch.pow(lower_lab_tensor[1,:,:], 2.0),
+                                         torch.pow(lower_lab_tensor[2,:,:], 2.0))),
+                    torch.atan2(lower_lab_tensor[2,:,:], lower_lab_tensor[1,:,:])
+                ]
+            )
 
-        upper_l_eal_tensor = equivalent_achromatic_lightness(upper_lch_tensor)
-        lower_l_eal_tensor = equivalent_achromatic_lightness(lower_lch_tensor)
+        upper_l_eal_tensor, lower_l_eal_tensor = None, None
+        if "l_eal" in required:
+            upper_l_eal_tensor = equivalent_achromatic_lightness(upper_lch_tensor)
+            lower_l_eal_tensor = equivalent_achromatic_lightness(lower_lch_tensor)
 
-        image_hsv_upper, image_hsv_lower = image_upper.convert("HSV"), image_lower.convert("HSV")
-        upper_hsv_tensor = torch.stack(
-            [
-                tensor_from_pil_image(image_hsv_upper.getchannel("H"), normalize=False)[0,:,:],
-                tensor_from_pil_image(image_hsv_upper.getchannel("S"), normalize=False)[0,:,:],
-                tensor_from_pil_image(image_hsv_upper.getchannel("V"), normalize=False)[0,:,:]
-            ]
-        )
-        lower_hsv_tensor = torch.stack(
-            [
-                tensor_from_pil_image(image_hsv_lower.getchannel("H"), normalize=False)[0,:,:],
-                tensor_from_pil_image(image_hsv_lower.getchannel("S"), normalize=False)[0,:,:],
-                tensor_from_pil_image(image_hsv_lower.getchannel("V"), normalize=False)[0,:,:]
-            ]
-        )
-        
+        image_hsv_upper, image_hsv_lower = None, None
+        upper_hsv_tensor, lower_hsv_tensor = None, None
+        if "hsv" in required:
+            image_hsv_upper, image_hsv_lower = image_upper.convert("HSV"), image_lower.convert("HSV")
+            upper_hsv_tensor = torch.stack(
+                [
+                    tensor_from_pil_image(image_hsv_upper.getchannel("H"), normalize=False)[0,:,:],
+                    tensor_from_pil_image(image_hsv_upper.getchannel("S"), normalize=False)[0,:,:],
+                    tensor_from_pil_image(image_hsv_upper.getchannel("V"), normalize=False)[0,:,:]
+                ]
+            )
+            lower_hsv_tensor = torch.stack(
+                [
+                    tensor_from_pil_image(image_hsv_lower.getchannel("H"), normalize=False)[0,:,:],
+                    tensor_from_pil_image(image_hsv_lower.getchannel("S"), normalize=False)[0,:,:],
+                    tensor_from_pil_image(image_hsv_lower.getchannel("V"), normalize=False)[0,:,:]
+                ]
+            )
+
         upper_rgb_tensor = tensor_from_pil_image(image_upper, normalize=False)
         lower_rgb_tensor = tensor_from_pil_image(image_lower, normalize=False)
 
@@ -308,37 +314,46 @@ class ImageBlendInvocation(BaseInvocation):
         if not (mask_image is None):
             mask_tensor = tensor_from_pil_image(mask_image.convert("L"), normalize=False)[0,:,:]
 
-        upper_hsl_tensor = hsl_from_srgb(upper_rgb_tensor)
-        lower_hsl_tensor = hsl_from_srgb(lower_rgb_tensor)
+        upper_hsl_tensor, lower_hsl_tensor = None, None
+        if "hsl" in required:
+            upper_hsl_tensor = hsl_from_srgb(upper_rgb_tensor)
+            lower_hsl_tensor = hsl_from_srgb(lower_rgb_tensor)
 
-        upper_okhsl_tensor = okhsl_from_srgb(upper_rgb_tensor, steps=(3 if self.high_precision else 1))
-        lower_okhsl_tensor = okhsl_from_srgb(lower_rgb_tensor, steps=(3 if self.high_precision else 1))
+        upper_okhsl_tensor, lower_okhsl_tensor = None, None
+        if "okhsl" in required:
+            upper_okhsl_tensor = okhsl_from_srgb(upper_rgb_tensor, steps=(3 if self.high_precision else 1))
+            lower_okhsl_tensor = okhsl_from_srgb(lower_rgb_tensor, steps=(3 if self.high_precision else 1))
 
-        upper_okhsv_tensor = okhsv_from_srgb(upper_rgb_tensor, steps=(3 if self.high_precision else 1))
-        lower_okhsv_tensor = okhsv_from_srgb(lower_rgb_tensor, steps=(3 if self.high_precision else 1))
+        upper_okhsv_tensor, lower_okhsv_tensor = None, None
+        if "okhsv" in required:
+            upper_okhsv_tensor = okhsv_from_srgb(upper_rgb_tensor, steps=(3 if self.high_precision else 1))
+            lower_okhsv_tensor = okhsv_from_srgb(lower_rgb_tensor, steps=(3 if self.high_precision else 1))
 
         upper_rgb_l_tensor = linear_srgb_from_srgb(upper_rgb_tensor)
         lower_rgb_l_tensor = linear_srgb_from_srgb(lower_rgb_tensor)
 
-        upper_oklab_tensor = oklab_from_linear_srgb(upper_rgb_l_tensor)
-        lower_oklab_tensor = oklab_from_linear_srgb(lower_rgb_l_tensor)
+        upper_oklab_tensor, lower_oklab_tensor = None, None
+        upper_oklch_tensor, lower_oklch_tensor = None, None
+        if "oklch" in required:
+            upper_oklab_tensor = oklab_from_linear_srgb(upper_rgb_l_tensor)
+            lower_oklab_tensor = oklab_from_linear_srgb(lower_rgb_l_tensor)
 
-        upper_oklch_tensor = torch.stack(
-            [
-                upper_oklab_tensor[0,:,:],
-                torch.sqrt(torch.add(torch.pow(upper_oklab_tensor[1,:,:], 2.0),
-                                     torch.pow(upper_oklab_tensor[2,:,:], 2.0))),
-                torch.atan2(upper_oklab_tensor[2,:,:], upper_oklab_tensor[1,:,:])
-            ]
-        )
-        lower_oklch_tensor = torch.stack(
-            [
-                lower_oklab_tensor[0,:,:],
-                torch.sqrt(torch.add(torch.pow(lower_oklab_tensor[1,:,:], 2.0),
-                                     torch.pow(lower_oklab_tensor[2,:,:], 2.0))),
-                torch.atan2(lower_oklab_tensor[2,:,:], lower_oklab_tensor[1,:,:])
-            ]
-        )
+            upper_oklch_tensor = torch.stack(
+                [
+                    upper_oklab_tensor[0,:,:],
+                    torch.sqrt(torch.add(torch.pow(upper_oklab_tensor[1,:,:], 2.0),
+                                         torch.pow(upper_oklab_tensor[2,:,:], 2.0))),
+                    torch.atan2(upper_oklab_tensor[2,:,:], upper_oklab_tensor[1,:,:])
+                ]
+            )
+            lower_oklch_tensor = torch.stack(
+                [
+                    lower_oklab_tensor[0,:,:],
+                    torch.sqrt(torch.add(torch.pow(lower_oklab_tensor[1,:,:], 2.0),
+                                         torch.pow(lower_oklab_tensor[2,:,:], 2.0))),
+                    torch.atan2(lower_oklab_tensor[2,:,:], lower_oklab_tensor[1,:,:])
+                ]
+            )
         
         return (
             upper_rgb_l_tensor,
@@ -886,6 +901,27 @@ class ImageBlendInvocation(BaseInvocation):
             image_mask = self.scale_and_pad_or_crop_to_base(
                 image_mask, image_base
             )
+
+        tensor_requirements = []
+
+        # Hue, Saturation, Color, and Luminosity won't work in sRGB, require HSL
+        if self.blend_mode in ["Hue", "Saturation", "Color", "Luminosity"] and  \
+           self.color_space in ["RGB", "Linear RGB"]:
+            tensor_requirements = ["hsl"]
+
+        if self.blend_mode in ["Lighten Only (EAL)", "Darken Only (EAL)"]:
+            tensor_requirements = tensor_requirements + ["lch", "l_eal"]
+
+        tensor_requirements += {
+            "Linear": [],
+            "RGB": [],
+            "HSL": ["hsl"],
+            "HSV": ["hsv"],
+            "Okhsl": ["okhsl"],
+            "Okhsv": ["okhsv"],
+            "Oklch": ["oklch"],
+            "LCh": ["lch"]
+        }[color_space]
             
         image_tensors = (
             upper_rgb_l_tensor,  # linear-light sRGB
@@ -914,7 +950,7 @@ class ImageBlendInvocation(BaseInvocation):
             upper_okhsl_tensor,
             lower_okhsl_tensor
         ) = self.prepare_tensors_from_images(
-            image_upper, image_base, mask_image=image_mask
+            image_upper, image_base, mask_image=image_mask, required=tensor_requirements
         )
 
 #        if not (self.blend_mode == "Normal"):
