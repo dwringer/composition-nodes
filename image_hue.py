@@ -93,10 +93,10 @@ BLEND_COLOR_SPACES = [
 
 @invocation(
     "img_blend",
-    title="Image Blend",
-    tags=["image", "blend", "layer", "alpha", "composite"],
+    title="Image Layer Blend",
+    tags=["image", "blend", "layer", "alpha", "composite", "dodge", "burn"],
     category="image",
-    version="1.0.9",
+    version="1.0.10",
 )
 class ImageBlendInvocation(BaseInvocation):
     """Blend two images together, with optional opacity, mask, and blend modes"""

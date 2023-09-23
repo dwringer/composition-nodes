@@ -24,7 +24,7 @@ Input a prompt and an image to generate a mask representing areas of the image m
 
 Output up to four prompt masks combined with logical "and", logical "or", or as separate channels of an RGBA image.
 
-### Image Blend
+### Image Layer Blend
 
 Perform a layered blend of two images using alpha compositing. Opacity of top layer is selectable, and a mask image may also be used. There are currently 23 blend modes supported and 8 color space modes. Four of the blend modes - Hue, Saturation, Color, and Luminosity - are restricted to only 6 of the color space modes: RGB and Linear RGB will convert to HSL for those blend modes. Several of the other blend modes only operate on the lightness channel of non-RGB color space modes.
 
