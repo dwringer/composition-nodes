@@ -12,6 +12,15 @@ Rotate the hue of an image in one of several different color spaces.
 
 Use a mask to blend part of one latents tensor into another. Can be used to "renoise" sections during a multi-stage [masked] denoising process.
 
+### Enhance Image
+
+Boost or reduce color saturation, contrast, brightness, sharpness, or invert colors of any image at any stage with this simple wrapper for pillow [PIL]'s ImageEnhance module.
+
+Color inversion is toggled with a simple switch, while each of the four enhancer modes are activated by entering a value other than 1 in each corresponding input field. Values less than 1 will reduce the corresponding property, while values greater than 1 will enhance it.
+
+**Example Usage:**
+![enhance image usage graph](https://raw.githubusercontent.com/dwringer/composition-nodes/main/image_enhance_usage.jpg)
+
 ### Equivalent Achromatic Lightness
 
 Calculates image lightness accounting for Helmholtz-Kohlrausch effect based on a method described by High, Green, and Nussbaum (2023) [https://doi.org/10.1002/col.22839].

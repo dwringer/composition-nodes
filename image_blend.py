@@ -12,7 +12,7 @@ import os.path
 from math import pi as PI
 from typing import Literal, Optional
 
-import PIL.Image, PIL.ImageOps
+import PIL.Image, PIL.ImageOps, PIL.ImageCms
 import torch
 from torchvision.transforms.functional import to_pil_image as pil_image_from_tensor
 
@@ -96,7 +96,7 @@ BLEND_COLOR_SPACES = [
     title="Image Layer Blend",
     tags=["image", "blend", "layer", "alpha", "composite", "dodge", "burn"],
     category="image",
-    version="1.0.10",
+    version="1.0.11",
 )
 class ImageBlendInvocation(BaseInvocation):
     """Blend two images together, with optional opacity, mask, and blend modes"""
@@ -579,7 +579,6 @@ class ImageBlendInvocation(BaseInvocation):
                 )
             upper_rgb_l_tensor = adaptive_clipped(reassembly_function(upper_space_tensor))
 
-        # TODO:
         elif blend_mode == "Soft Light":
             if lightness_index is None:
                 g_tensor = torch.where(
@@ -609,7 +608,7 @@ class ImageBlendInvocation(BaseInvocation):
                     )
                 )
             else:
-                g_tensor = torch.where(
+                g_tensor = torch.where(  # Calculates all 3 channels but only one is currently used
                     torch.le(
                         lower_space_tensor[lightness_index,:,:], 0.25
                     ).expand(lower_space_tensor.shape),
@@ -639,29 +638,25 @@ class ImageBlendInvocation(BaseInvocation):
                         )
                     )
                 )
-                lower_space_tensor[hue_index,:,:] = torch.remainder(lower_space_tensor[hue_index,:,:], 1.)
             upper_rgb_l_tensor = adaptive_clipped(reassembly_function(lower_space_tensor))
         
         elif blend_mode == "Linear Dodge (Add)":
-            upper_rgb_l_tensor = adaptive_clipped(
-                reassembly_function(
-                    torch.add(lower_space_tensor, upper_space_tensor)
-                )
-            )
+            lower_space_tensor = torch.add(lower_space_tensor, upper_space_tensor)
+            if hue_index is not None:
+                lower_space_tensor[hue_index,:,:] = torch.remainder(lower_space_tensor[hue_index,:,:], 1.)
+            upper_rgb_l_tensor = adaptive_clipped(reassembly_function(lower_space_tensor))
 
         elif blend_mode == "Color Dodge":
-            upper_rgb_l_tensor = adaptive_clipped(
-                reassembly_function(
-                    torch.div(lower_rgb_l_tensor, torch.add(torch.mul(upper_space_tensor, -1.), 1.))
-                )
-            )
-        
+            lower_space_tensor = torch.div(lower_space_tensor, torch.add(torch.mul(upper_space_tensor, -1.), 1.))
+            if hue_index is not None:
+                lower_space_tensor[hue_index,:,:] = torch.remainder(lower_space_tensor[hue_index,:,:], 1.)
+            upper_rgb_l_tensor = adaptive_clipped(reassembly_function(lower_space_tensor))
+
         elif blend_mode == "Divide":
-            upper_rgb_l_tensor = adaptive_clipped(
-                reassembly_function(
-                    torch.div(lower_space_tensor, upper_space_tensor)
-                )
-            )
+            lower_space_tensor = torch.div(lower_space_tensor, upper_space_tensor)
+            if hue_index is not None:
+                lower_space_tensor[hue_index,:,:] = torch.remainder(lower_space_tensor[hue_index,:,:], 1.)
+            upper_rgb_l_tensor = adaptive_clipped(reassembly_function(lower_space_tensor))              
 
         elif blend_mode == "Linear Burn":
             # We compute the result in the lower image's current space tensor and return that:
@@ -738,11 +733,7 @@ class ImageBlendInvocation(BaseInvocation):
                         2.
                     )
                 )
-            upper_rgb_l_tensor = adaptive_clipped(
-                reassembly_function(
-                    lower_space_tensor
-                )
-            )
+            upper_rgb_l_tensor = adaptive_clipped(reassembly_function(lower_space_tensor))
                 
         elif blend_mode == "Linear Light":
             if lightness_index is None:
@@ -756,20 +747,13 @@ class ImageBlendInvocation(BaseInvocation):
                               torch.mul(upper_space_tensor[lightness_index,:,:], 2.)),
                     1.
                 )
-                
-                
-            upper_rgb_l_tensor = adaptive_clipped(
-                reassembly_function(
-                    lower_space_tensor
-                )
-            )
+            upper_rgb_l_tensor = adaptive_clipped(reassembly_function(lower_space_tensor))
 
         elif blend_mode == "Subtract":
-            upper_rgb_l_tensor = adaptive_clipped(
-                reassembly_function(
-                    torch.sub(lower_space_tensor, upper_space_tensor)
-                )
-            )
+            lower_space_tensor = torch.sub(lower_space_tensor, upper_space_tensor)
+            if hue_index is not None:
+                lower_space_tensor[hue_index,:,:] = torch.remainder(lower_space_tensor[hue_index,:,:], 1.)
+            upper_rgb_l_tensor = adaptive_clipped(reassembly_function(lower_space_tensor))
 
         elif blend_mode == "Difference":
             upper_rgb_l_tensor = adaptive_clipped(
@@ -1511,10 +1495,10 @@ def find_gamut_intersection_tensor(
     return t_tensor
 
 
-def gamut_clip_tensor(rgb_tensor, alpha=0.05, steps=1, steps_outer=1):
+def gamut_clip_tensor(rgb_l_tensor, alpha=0.05, steps=1, steps_outer=1):
     """Adaptively compress out-of-gamut linear-light sRGB image tensor colors into gamut"""
 
-    lab_tensor = oklab_from_linear_srgb(rgb_tensor)
+    lab_tensor = oklab_from_linear_srgb(rgb_l_tensor)
     epsilon = 0.00001
     chroma_tensor = torch.sqrt(
         torch.add(torch.pow(lab_tensor[1,:,:], 2.), torch.pow(lab_tensor[2,:,:], 2.))
@@ -1545,8 +1529,8 @@ def gamut_clip_tensor(rgb_tensor, alpha=0.05, steps=1, steps_outer=1):
                                  torch.mul(t_tensor, lab_tensor[0,:,:]))
     c_clipped_tensor = torch.mul(t_tensor, chroma_tensor)
 
-    return torch.where(torch.logical_or(torch.gt(rgb_tensor.max(0).values, 1.),
-                                        torch.lt(rgb_tensor.min(0).values, 0.)),
+    return torch.where(torch.logical_or(torch.gt(rgb_l_tensor.max(0).values, 1.),
+                                        torch.lt(rgb_l_tensor.min(0).values, 0.)),
                        
                        linear_srgb_from_oklab(torch.stack(
                            [
@@ -1556,7 +1540,7 @@ def gamut_clip_tensor(rgb_tensor, alpha=0.05, steps=1, steps_outer=1):
                            ]
                        )),
 
-                       rgb_tensor)
+                       rgb_l_tensor)
 
 
 def st_cusps_from_lc(lc_cusps_tensor):
@@ -2065,6 +2049,7 @@ def hsl_from_srgb(rgb_tensor):
 
 def srgb_from_hsl(hsl_tensor):
     """Get gamma-corrected sRGB from an HSL image tensor"""
+    hsl_tensor = hsl_tensor.clamp(0.,1.)
     rgb_tensor = torch.empty(hsl_tensor.shape)
     s_0_mask = torch.eq(hsl_tensor[1,:,:], 0.)
     s_ne0_mask = torch.logical_not(s_0_mask)
