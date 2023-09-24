@@ -608,10 +608,13 @@ class ImageBlendInvocation(BaseInvocation):
                     )
                 )
             else:
+                print("\r\nCOND SHAPE:"+str(torch.le(
+                        lower_space_tensor[lightness_index,:,:], 0.25
+                    ).unsqueeze(0).shape)+'\r\n')
                 g_tensor = torch.where(  # Calculates all 3 channels but only one is currently used
                     torch.le(
                         lower_space_tensor[lightness_index,:,:], 0.25
-                    ).expand(lower_space_tensor.shape),
+                    ).expand(upper_space_tensor.shape),
                     torch.mul(torch.add(torch.mul(torch.sub(torch.mul(lower_space_tensor, 16.), 12.),
                                                   lower_space_tensor), 4.), lower_space_tensor),
                     torch.sqrt(lower_space_tensor)
@@ -634,7 +637,7 @@ class ImageBlendInvocation(BaseInvocation):
                         lower_space_tensor[lightness_index,:,:],
                         torch.mul(
                             torch.sub(torch.mul(upper_space_tensor[lightness_index,:,:], 2.), 1.),
-                            torch.sub(g_tensor, lower_space_tensor[lightness_index,:,:])
+                            torch.sub(g_tensor[lightness_index,:,:], lower_space_tensor[lightness_index,:,:])
                         )
                     )
                 )
