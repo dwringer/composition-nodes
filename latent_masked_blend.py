@@ -24,7 +24,7 @@ from invokeai.app.invocations.baseinvocation import (
 )
 
 
-@invocation("lmblend", title="Blend Latents (Masked)", tags=["latents", "blend"], category="latents", version="1.0.0")
+@invocation("lmblend", title="Blend Latents/Noise (Masked)", tags=["latents", "noise", "blend"], category="latents", version="1.0.1")
 class MaskedBlendLatentsInvocation(BaseInvocation):
     """Blend two latents using a given alpha and mask. Latents must have same size."""
 

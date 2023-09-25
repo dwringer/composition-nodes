@@ -8,9 +8,9 @@ To install these nodes, simply place the included `.py` files in your `invokeai/
 
 Rotate the hue of an image in one of several different color spaces.
 
-### Blend Latents (Masked)
+### Blend Latents/Noise (Masked)
 
-Use a mask to blend part of one latents tensor into another. Can be used to "renoise" sections during a multi-stage [masked] denoising process.
+Use a mask to blend part of one latents/noise tensor into another. Can be used to "renoise" sections during a multi-stage [masked] denoising process.
 
 ### Enhance Image
 
