@@ -23,7 +23,7 @@ from invokeai.app.invocations.primitives import (
     title="Offset Image",
     tags=["image", "offset"],
     category="image",
-    version="1.0.0",    
+    version="1.0.1",
 )
 class ImageOffsetInvocation(BaseInvocation):
     """Offsets an image by a given percentage (or pixel amount)."""
@@ -59,6 +59,7 @@ class ImageOffsetInvocation(BaseInvocation):
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
+            workflow=self.workflow,
         )
 
         return ImageOutput(

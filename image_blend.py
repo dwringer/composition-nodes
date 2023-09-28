@@ -96,7 +96,7 @@ BLEND_COLOR_SPACES = [
     title="Image Layer Blend",
     tags=["image", "blend", "layer", "alpha", "composite", "dodge", "burn"],
     category="image",
-    version="1.0.12",
+    version="1.0.13",
 )
 class ImageBlendInvocation(BaseInvocation):
     """Blend two images together, with optional opacity, mask, and blend modes"""
@@ -979,7 +979,8 @@ class ImageBlendInvocation(BaseInvocation):
             image_category=ImageCategory.GENERAL,
             node_id=self.id,
             session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate
+            is_intermediate=self.is_intermediate,
+            workflow=self.workflow,
         )
         return ImageOutput(
             image=ImageField(image_name=image_dto.image_name),
@@ -993,7 +994,7 @@ class ImageBlendInvocation(BaseInvocation):
     title="Adjust Image Hue Plus",
     tags=["image", "hue", "oklab", "cielab", "uplab", "lch", "hsv", "hsl", "lab"],
     category="image",
-    version="1.0.1",
+    version="1.0.2",
 )
 class AdjustImageHuePlusInvocation(BaseInvocation):
     """Adjusts the Hue of an image by rotating it in the selected color space"""
@@ -1219,7 +1220,8 @@ class AdjustImageHuePlusInvocation(BaseInvocation):
             image_category=ImageCategory.GENERAL,
             node_id=self.id,
             session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate
+            is_intermediate=self.is_intermediate,
+            workflow=self.workflow,
         )
         return ImageOutput(
             image=ImageField(image_name=image_dto.image_name),

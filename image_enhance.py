@@ -22,7 +22,7 @@ from invokeai.app.invocations.primitives import (
     title="Enhance Image",
     tags=["enhance", "image"],
     category="image",
-    version="1.0.0",    
+    version="1.0.1",
 )
 class ImageEnhanceInvocation(BaseInvocation):
     """Applies processing from PIL's ImageEnhance module."""
@@ -57,7 +57,8 @@ class ImageEnhanceInvocation(BaseInvocation):
             image_category=ImageCategory.GENERAL,
             node_id=self.id,
             session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate
+            is_intermediate=self.is_intermediate,
+            workflow=self.workflow,
         )
         return ImageOutput(image=ImageField(image_name=image_dto.image_name),
                            width=image_dto.width,

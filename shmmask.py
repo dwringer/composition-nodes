@@ -49,7 +49,7 @@ class ShadowsHighlightsMidtonesMasksOutput(BaseInvocationOutput):
     title="Equivalent Achromatic Lightness",
     tags=["image", "channel", "mask", "cielab", "lab"],
     category="image",
-    version="1.0.1",
+    version="1.0.2",
 )
 class EquivalentAchromaticLightnessInvocation(BaseInvocation):
     """Calculate Equivalent Achromatic Lightness from image"""
@@ -101,7 +101,8 @@ class EquivalentAchromaticLightnessInvocation(BaseInvocation):
             image_category=ImageCategory.GENERAL,
             node_id=self.id,
             session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate
+            is_intermediate=self.is_intermediate,
+            workflow=self.workflow,
         )
         return ImageOutput(
             image=ImageField(image_name=image_dto.image_name),
@@ -116,7 +117,7 @@ class EquivalentAchromaticLightnessInvocation(BaseInvocation):
     title="Shadows/Highlights/Midtones",
     tags=["mask", "image", "shadows", "highlights", "midtones"],
     category="image",
-    version="1.0.2",
+    version="1.0.3",
 )
 class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
     """Extract a Shadows/Highlights/Midtones mask from an image"""
@@ -182,7 +183,7 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
         img_tensor[ones_mask] = ones_tensor[ones_mask]
         img_tensor[zeros_mask] = zeros_tensor[zeros_mask]
 
-        return img_tensor if not self.invert_output else torch.sub(1., img_tensor)
+        return img_tensor if self.invert_output else torch.sub(1., img_tensor)
 
 
     def get_shadows_mask(self, image_tensor):
@@ -208,7 +209,7 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
         img_tensor[ones_mask] = ones_tensor[ones_mask]
         img_tensor[zeros_mask] = zeros_tensor[zeros_mask]
 
-        return img_tensor if not self.invert_output else torch.sub(1., img_tensor)
+        return img_tensor if self.invert_output else torch.sub(1., img_tensor)
 
 
     def get_midtones_mask(self, image_tensor):
@@ -256,7 +257,7 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
         img_tensor[highlight_ones_mask] = ones_tensor[highlight_ones_mask]
         img_tensor[shadows_ones_mask] = ones_tensor[shadows_ones_mask]
 
-        return img_tensor if not self.invert_output else torch.sub(1., img_tensor)
+        return img_tensor if self.invert_output else torch.sub(1., img_tensor)
 
 
     def invoke(self, context: InvocationContext) -> ShadowsHighlightsMidtonesMasksOutput:
@@ -278,7 +279,8 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
             image_category=ImageCategory.GENERAL,
             node_id=self.id,
             session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate
+            is_intermediate=self.is_intermediate,
+            workflow=self.workflow,
         )
         m_image_out = pil_image_from_tensor(self.get_midtones_mask(image_tensor), mode="L")
         if self.mask_expand_or_contract != 0:
@@ -294,7 +296,8 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
             image_category=ImageCategory.GENERAL,
             node_id=self.id,
             session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate
+            is_intermediate=self.is_intermediate,
+            workflow=self.workflow,
         )
         s_image_out = pil_image_from_tensor(self.get_shadows_mask(image_tensor), mode="L")
         if self.mask_expand_or_contract != 0:
@@ -309,7 +312,8 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
             image_category=ImageCategory.GENERAL,
             node_id=self.id,
             session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate
+            is_intermediate=self.is_intermediate,
+            workflow=self.workflow,
         )
         return ShadowsHighlightsMidtonesMasksOutput(
             highlights_mask=ImageField(image_name=h_image_dto.image_name),

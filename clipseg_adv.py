@@ -34,7 +34,7 @@ COMBINE_MODES: list = [
     title="Text to Mask Advanced (Clipseg)",
     tags=["image", "mask", "clip", "clipseg", "txt2mask", "advanced"],
     category="image",
-    version="1.0.2",
+    version="1.0.3",
 )
 class TextToMaskClipsegAdvancedInvocation(BaseInvocation):
     """Uses the Clipseg model to generate an image mask from a text prompt"""
@@ -161,7 +161,8 @@ class TextToMaskClipsegAdvancedInvocation(BaseInvocation):
             image_category=ImageCategory.GENERAL,
             node_id=self.id,
             session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate
+            is_intermediate=self.is_intermediate,
+            workflow=self.workflow,
         )
         return ImageOutput(
             image=ImageField(image_name=image_dto.image_name),
@@ -175,7 +176,7 @@ class TextToMaskClipsegAdvancedInvocation(BaseInvocation):
     title="Image Value Thresholds",
     tags=["image", "mask", "value", "threshold"],
     category="image",
-    version="1.0.2"
+    version="1.0.3"
 )
 class ImageValueThresholdsInvocation(BaseInvocation):
     """Clip image to pure black/white past specified thresholds"""
@@ -272,7 +273,8 @@ class ImageValueThresholdsInvocation(BaseInvocation):
             image_category=ImageCategory.GENERAL,
             node_id=self.id,
             session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate
+            is_intermediate=self.is_intermediate,
+            workflow=self.workflow,
         )
         return ImageOutput(
             image=ImageField(image_name=image_dto.image_name),
@@ -286,7 +288,7 @@ class ImageValueThresholdsInvocation(BaseInvocation):
     title="Image Dilate or Erode",
     tags=["image", "mask", "dilate", "erode", "expand", "contract", "mask"],
     category="image",
-    version="1.0.1",
+    version="1.0.2",
 )
 class ImageDilateOrErodeInvocation(BaseInvocation):
     """Dilate (expand) or erode (contract) an image"""
@@ -362,7 +364,8 @@ class ImageDilateOrErodeInvocation(BaseInvocation):
             image_category=ImageCategory.GENERAL,
             node_id=self.id,
             session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate
+            is_intermediate=self.is_intermediate,
+            workflow=self.workflow,
         )
         return ImageOutput(
             image=ImageField(image_name=image_dto.image_name),

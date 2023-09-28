@@ -26,7 +26,7 @@ from invokeai.backend.stable_diffusion.diffusers_pipeline import (
     title="Text to Mask (Clipseg)",
     tags=["image", "mask", "clip", "clipseg", "txt2mask"],
     category="image",
-    version="1.0.2",
+    version="1.0.3",
 )
 class TextToMaskClipsegInvocation(BaseInvocation):
     """Uses the Clipseg model to generate an image mask from a text prompt"""
@@ -158,7 +158,8 @@ class TextToMaskClipsegInvocation(BaseInvocation):
             image_category=ImageCategory.GENERAL,
             node_id=self.id,
             session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate
+            is_intermediate=self.is_intermediate,
+            workflow=self.workflow,
         )
         return ImageOutput(
             image=ImageField(image_name=image_dto.image_name),
