@@ -65,9 +65,9 @@ This takes a Latents input as well as two numbers (between 0 and 1), which are u
 
 This works like Offset Latents, but in image space, with the additional capability of taking exact pixel offsets instead of just percentages (toggled with a switch/boolean input).
 
-### Rotate Image
+### Rotate/Flip Image
 
-Rotate an image in degrees about its center, clockwise (positive entries) or counterclockwise (negative entries). Optionally expand the image boundary to fit the rotated image.
+Rotate an image in degrees about its center, clockwise (positive entries) or counterclockwise (negative entries). Optionally expand the image boundary to fit the rotated image, or flip it horizontally or vertically.
 
 ### Shadows/Highlights/Midtones
 

@@ -30,10 +30,10 @@ def tensor_from_pil_image(img, normalize=False):
 
 @invocation(
     "rotate_image",
-    title="Rotate Image",
-    tags=["image", "rotate"],
+    title="Rotate/Flip Image",
+    tags=["image", "rotate", "flip"],
     category="image",
-    version="1.0.0",
+    version="1.0.1",
 )
 class ImageRotateInvocation(BaseInvocation):
     """Rotates an image by a given angle (in degrees clockwise)."""
@@ -45,6 +45,12 @@ class ImageRotateInvocation(BaseInvocation):
     )
     expand_to_fit: bool = InputField(
         default=True, description="If true, extends the image boundary to fit the rotated content"
+    )
+    flip_horizontal: bool = InputField(
+        default=False, description="If true, flips the image horizontally"
+    )
+    flip_vertical: bool = InputField(
+        default=False, description="If true, flips the image vertically"
     )
 
     def invoke(self, context: InvocationContext) -> ImageOutput:
@@ -98,6 +104,11 @@ class ImageRotateInvocation(BaseInvocation):
         rgb_nparray = (cv2.warpAffine(
             rgb_nparray, transformation, (new_width, new_height)
         ) * 255.).astype('uint8')
+
+        if self.flip_vertical:
+            rgb_nparray = numpy.flip(rgb_nparray, axis=0)
+        if self.flip_horizontal:
+            rgb_nparray = numpy.flip(rgb_nparray, axis=1)
 
         image_out = PIL.Image.fromarray(rgb_nparray, mode="RGB")
 
