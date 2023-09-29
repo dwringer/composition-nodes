@@ -65,6 +65,10 @@ This takes a Latents input as well as two numbers (between 0 and 1), which are u
 
 This works like Offset Latents, but in image space, with the additional capability of taking exact pixel offsets instead of just percentages (toggled with a switch/boolean input).
 
+### Rotate Image
+
+Rotate an image in degrees about its center, clockwise (positive entries) or counterclockwise (negative entries). Optionally expand the image boundary to fit the rotated image.
+
 ### Shadows/Highlights/Midtones
 
 Extract three masks (with adjustable hard or soft thresholds) representing shadows, midtones, and highlights regions of an image.
