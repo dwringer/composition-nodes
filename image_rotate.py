@@ -1,5 +1,3 @@
-from ast import literal_eval as tuple_from_string
-from functools import reduce
 from math import sqrt, sin, cos, pi as PI
 
 import PIL.Image
