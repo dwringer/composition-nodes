@@ -288,7 +288,7 @@ class ImageValueThresholdsInvocation(BaseInvocation):
     title="Image Dilate or Erode",
     tags=["image", "mask", "dilate", "erode", "expand", "contract", "mask"],
     category="image",
-    version="1.0.2",
+    version="1.0.3",
 )
 class ImageDilateOrErodeInvocation(BaseInvocation):
     """Dilate (expand) or erode (contract) an image"""
