@@ -49,7 +49,7 @@ class ShadowsHighlightsMidtonesMasksOutput(BaseInvocationOutput):
     title="Equivalent Achromatic Lightness",
     tags=["image", "channel", "mask", "cielab", "lab"],
     category="image",
-    version="1.0.2",
+    version="1.0.3",
 )
 class EquivalentAchromaticLightnessInvocation(BaseInvocation):
     """Calculate Equivalent Achromatic Lightness from image"""
@@ -137,25 +137,22 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
         image_out = numpy.array(image_in)
         expand_radius = self.mask_expand_or_contract
         expand_fn = None
+        kernel = cv2.getStructuringElement(
+            cv2.MORPH_ELLIPSE, (abs(expand_radius * 2), abs(expand_radius * 2))
+        )
         if 0 < self.mask_expand_or_contract:
             if self.invert_output:
                 expand_fn = cv2.erode
             else:
                 expand_fn = cv2.dilate
         else:
-            expand_radius *= -1
             if self.invert_output:
                 expand_fn = cv2.dilate
             else:
                 expand_fn = cv2.erode
         image_out = expand_fn(
             image_out,
-            numpy.uint8(
-                numpy.array(
-                    [[i**2 + j**2 for i in range(-expand_radius, expand_radius + 1)]
-                     for j in range(-expand_radius, expand_radius + 1)]
-                ) < (expand_radius + 1)**2,
-            ),
+            kernel,
             iterations=1
         )
         return PIL.Image.fromarray(image_out, mode="L")

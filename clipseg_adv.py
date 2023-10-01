@@ -304,11 +304,12 @@ class ImageDilateOrErodeInvocation(BaseInvocation):
         image_out = numpy.array(image_in)
         expand_radius = self.radius
         expand_fn = None
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (abs(expand_radius * 2), abs(expand_radius * 2)))
+        kernel = cv2.getStructuringElement(
+            cv2.MORPH_ELLIPSE, (abs(expand_radius * 2), abs(expand_radius * 2))
+        )
         if 0 < self.radius:
             expand_fn = cv2.dilate
         else:
-            expand_radius *= -1
             expand_fn = cv2.erode
         image_out = expand_fn(
             image_out,
