@@ -21,12 +21,14 @@ from invokeai.app.invocations.baseinvocation import (
     InputField,
     InvocationContext,
     invocation,
+    WithMetadata,
+    WithWorkflow,
 )
 from invokeai.app.invocations.primitives import (
     ImageField,
     ImageOutput,
 )
-from invokeai.app.models.image import ImageCategory, ResourceOrigin
+from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
 from invokeai.backend.stable_diffusion.diffusers_pipeline import (
     image_resized_to_grid_as_tensor,
 )
@@ -96,9 +98,9 @@ BLEND_COLOR_SPACES = [
     title="Image Layer Blend",
     tags=["image", "blend", "layer", "alpha", "composite", "dodge", "burn"],
     category="image",
-    version="1.0.13",
+    version="1.1.0",
 )
-class ImageBlendInvocation(BaseInvocation):
+class ImageBlendInvocation(BaseInvocation, WithMetadata, WithWorkflow):
     """Blend two images together, with optional opacity, mask, and blend modes"""
 
     layer_upper: ImageField = InputField(description="The top image to blend", ui_order=1)
@@ -994,9 +996,9 @@ class ImageBlendInvocation(BaseInvocation):
     title="Adjust Image Hue Plus",
     tags=["image", "hue", "oklab", "cielab", "uplab", "lch", "hsv", "hsl", "lab"],
     category="image",
-    version="1.0.2",
+    version="1.1.0",
 )
-class AdjustImageHuePlusInvocation(BaseInvocation):
+class AdjustImageHuePlusInvocation(BaseInvocation, WithMetadata, WithWorkflow):
     """Adjusts the Hue of an image by rotating it in the selected color space"""
 
     image: ImageField = InputField(description="The image to adjust")
@@ -1247,12 +1249,19 @@ def equivalent_achromatic_lightness(lch_tensor):
     mask_lo = torch.le(lch_tensor[2,:,:], PI / 2.0)
     mask = torch.logical_and(mask_hi, mask_lo)
     f_r[mask] = f_r_0[mask]
-
+    
+    l_max = torch.ones(lch_tensor[0,:,:].shape)
+    l_min = torch.zeros(lch_tensor[0,:,:].shape)
+    l_adjustment = torch.tensordot(torch.add(f_by, f_r), lch_tensor[1,:,:], dims=([0, 1], [0, 1]))
+    l_max = torch.add(l_max, l_adjustment)
+    l_min = torch.add(l_min, l_adjustment)
+    l_eal_tensor = torch.add(lch_tensor[0,:,:], l_adjustment)
+    
     l_eal_tensor = torch.add(
         lch_tensor[0,:,:],
         torch.tensordot(torch.add(f_by, f_r), lch_tensor[1,:,:], dims=([0, 1], [0, 1]))
     )
-    l_eal_tensor = torch.sub(l_eal_tensor, l_eal_tensor.min())
+    l_eal_tensor = torch.div(torch.sub(l_eal_tensor, l_min.min()), l_max.max() - l_min.min())
 
     return l_eal_tensor
 
@@ -2013,6 +2022,39 @@ def okhsl_from_srgb(rgb_tensor, steps=1, steps_outer=1):
 
     hsl_tensor = torch.stack([h_tensor, s_tensor, l_tensor])
     return torch.where(torch.isnan(hsl_tensor), 0., hsl_tensor).clamp(0.,1.)
+
+
+def xyz_from_srgb(rgb_l_tensor):
+    conversion_matrix = torch.tensor([[0.4124, 0.3576, 0.1805],
+                                      [0.2126, 0.7152, 0.0722],
+                                      [0.0193, 0.1192, 0.9505]])
+    return torch.einsum('zc, cwh -> zwh', conversion_matrix, rgb_l_tensor)
+
+
+def lab_from_xyz_helper(channel_illuminant_quotient_matrix):
+    delta = 6./29.
+
+    return torch.where(
+        torch.gt(channel_illuminant_quotient_matrix, delta**3.),
+        torch.pow(channel_illuminant_quotient_matrix, 1./3.),
+        torch.add(torch.div(channel_illuminant_quotient_matrix, 3.*(delta**2.)), 4./29.)
+    )
+
+
+def lab_from_xyz(xyz_tensor, reference_illuminant="D65"):
+    illuminant = {
+        "D65": [95.0489, 100., 108.8840],
+        "D50": [96.4212, 100., 82.5188]
+    }[reference_illuminant]
+    l_tensor = torch.sub(torch.mul(lab_from_xyz_helper(torch.div(xyz_tensor[1,:,:], illuminant[1])), 116.), 16.)
+    a_tensor = torch.mul(torch.sub(lab_from_xyz_helper(torch.div(xyz_tensor[0,:,:], illuminant[0])),
+                                   lab_from_xyz_helper(torch.div(xyz_tensor[1,:,:], illuminant[1]))),
+                         500.)
+    b_tensor = torch.mul(torch.sub(lab_from_xyz_helper(torch.div(xyz_tensor[1,:,:], illuminant[1])),
+                                   lab_from_xyz_helper(torch.div(xyz_tensor[2,:,:], illuminant[2]))),
+                         200.)
+
+    return torch.stack([l_tensor, a_tensor, b_tensor])
 
 
 ######################################################################################\

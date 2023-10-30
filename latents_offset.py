@@ -7,6 +7,8 @@ from invokeai.app.invocations.baseinvocation import (
     InputField,
     InvocationContext,
     invocation,
+    WithMetadata,
+    WithWorkflow,
 )
 from invokeai.backend.util.devices import choose_torch_device
 from invokeai.app.invocations.primitives import (
@@ -21,7 +23,7 @@ from invokeai.app.invocations.primitives import (
     title="Offset Latents",
     tags=["latents", "offset"],
     category="latents",
-    version="1.0.0",
+    version="1.1.0",
 )
 class OffsetLatentsInvocation(BaseInvocation):
     """Offsets a latents tensor by a given percentage of height/width."""

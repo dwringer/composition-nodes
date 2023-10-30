@@ -21,10 +21,12 @@ from invokeai.app.invocations.baseinvocation import (
     InputField,
     InvocationContext,
     invocation,
+    WithMetadata,
+    WithWorkflow,
 )
 
 
-@invocation("lmblend", title="Blend Latents/Noise (Masked)", tags=["latents", "noise", "blend"], category="latents", version="1.0.1")
+@invocation("lmblend", title="Blend Latents/Noise (Masked)", tags=["latents", "noise", "blend"], category="latents", version="1.1.0")
 class MaskedBlendLatentsInvocation(BaseInvocation):
     """Blend two latents using a given alpha and mask. Latents must have same size."""
 

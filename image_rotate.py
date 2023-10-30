@@ -4,13 +4,15 @@ import PIL.Image
 import cv2
 import numpy
 
-from invokeai.app.models.image import ImageCategory, ResourceOrigin
+from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
 from invokeai.app.invocations.baseinvocation import (
     BaseInvocation,
     InputField,
     invocation,
     InvocationContext,
     OutputField,
+    WithMetadata,
+    WithWorkflow,
 )
 
 from invokeai.app.invocations.primitives import (
@@ -33,9 +35,9 @@ def tensor_from_pil_image(img, normalize=False):
     title="Rotate/Flip Image",
     tags=["image", "rotate", "flip"],
     category="image",
-    version="1.0.1",
+    version="1.1.0",
 )
-class ImageRotateInvocation(BaseInvocation):
+class ImageRotateInvocation(BaseInvocation, WithMetadata, WithWorkflow):
     """Rotates an image by a given angle (in degrees clockwise)."""
     image: ImageField = InputField(
         default=None, description="Image to be rotated clockwise"

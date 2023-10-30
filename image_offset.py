@@ -3,13 +3,15 @@ from functools import reduce
 
 from PIL import Image, ImageOps, ImageChops, ImageDraw, ImageColor
 
-from invokeai.app.models.image import ImageCategory, ResourceOrigin
+from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
 from invokeai.app.invocations.baseinvocation import (
     BaseInvocation,
     InputField,
     invocation,
     InvocationContext,
     OutputField,
+    WithMetadata,
+    WithWorkflow,
 )
 
 from invokeai.app.invocations.primitives import (
@@ -23,9 +25,9 @@ from invokeai.app.invocations.primitives import (
     title="Offset Image",
     tags=["image", "offset"],
     category="image",
-    version="1.0.1",
+    version="1.1.0",
 )
-class ImageOffsetInvocation(BaseInvocation):
+class ImageOffsetInvocation(BaseInvocation, WithMetadata, WithWorkflow):
     """Offsets an image by a given percentage (or pixel amount)."""
     as_pixels: bool = InputField(
         default=False, description="Interpret offsets as pixels rather than percentages"

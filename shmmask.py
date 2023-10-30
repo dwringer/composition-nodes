@@ -7,7 +7,7 @@ import PIL.Image
 import torch
 from torchvision.transforms.functional import to_pil_image as pil_image_from_tensor
 
-from invokeai.app.models.image import ImageCategory, ResourceOrigin
+from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
 from invokeai.app.invocations.primitives import (
     ImageField,
     ImageOutput,
@@ -21,18 +21,12 @@ from invokeai.app.invocations.baseinvocation import (
     BaseInvocationOutput,
     InputField,
     InvocationContext,
+    WithMetadata,
+    WithWorkflow,
     invocation,
     invocation_output,
     OutputField
 )
-
-MASK_TYPES: list = [
-    "shadows",
-    "highlights",
-    "midtones"
-]
-
-CIELAB_CHANNELS: list = ["L", "A", "B"]
 
 
 @invocation_output("shmmask_output")
@@ -49,9 +43,9 @@ class ShadowsHighlightsMidtonesMasksOutput(BaseInvocationOutput):
     title="Equivalent Achromatic Lightness",
     tags=["image", "channel", "mask", "cielab", "lab"],
     category="image",
-    version="1.0.3",
+    version="1.1.0",
 )
-class EquivalentAchromaticLightnessInvocation(BaseInvocation):
+class EquivalentAchromaticLightnessInvocation(BaseInvocation, WithMetadata, WithWorkflow):
     """Calculate Equivalent Achromatic Lightness from image"""
 
     image: ImageField = InputField(description="Image from which to get channel")
@@ -64,16 +58,21 @@ class EquivalentAchromaticLightnessInvocation(BaseInvocation):
     def invoke(self, context: InvocationContext) -> ImageOutput:
         image_in = context.services.images.get_pil_image(self.image.image_name)
 
+        if image_in.mode == "L":
+            image_in = image_in.convert("RGB")
+        
         image_out = image_in.convert("LAB")
         channel_l = image_out.getchannel("L")
         channel_a = image_out.getchannel("A")
         channel_b = image_out.getchannel("B")
 
-        l_tensor = image_resized_to_grid_as_tensor(channel_l, normalize=False)
-        a_tensor = image_resized_to_grid_as_tensor(channel_a, normalize=True)
-        b_tensor = image_resized_to_grid_as_tensor(channel_b, normalize=True)
+        l_tensor = image_resized_to_grid_as_tensor(channel_l, normalize=False, multiple_of=1)
+        l_max = torch.ones(l_tensor.shape)
+        l_min = torch.zeros(l_tensor.shape)
+        a_tensor = image_resized_to_grid_as_tensor(channel_a, normalize=True, multiple_of=1)
+        b_tensor = image_resized_to_grid_as_tensor(channel_b, normalize=True, multiple_of=1)
 
-        c_tensor = torch.sqrt(torch.add(torch.pow(a_tensor, 2), torch.pow(b_tensor, 2)))
+        c_tensor = torch.sqrt(torch.add(torch.pow(a_tensor, 2.), torch.pow(b_tensor, 2.)))
         h_tensor = torch.atan2(b_tensor, a_tensor)
 
         k = [0.1644, 0.0603, 0.1307, 0.0060]
@@ -89,9 +88,13 @@ class EquivalentAchromaticLightnessInvocation(BaseInvocation):
         mask_lo = torch.le(h_tensor, PI / 2.0)
         mask = torch.logical_and(mask_hi, mask_lo)
         f_r[mask] = f_r_0[mask]
-        
-        image_tensor = torch.add(l_tensor, torch.tensordot(torch.add(f_by, f_r), c_tensor, dims=([1, 2], [1, 2])))
-        image_tensor = torch.sub(image_tensor, image_tensor.min())
+
+        l_adjustment = torch.tensordot(torch.add(f_by, f_r), c_tensor, dims=([1, 2], [1, 2]))
+        l_max = torch.add(l_max, l_adjustment)
+        l_min = torch.add(l_min, l_adjustment)
+        image_tensor = torch.add(l_tensor, l_adjustment)
+
+        image_tensor = torch.div(torch.sub(image_tensor, l_min.min()), l_max.max() - l_min.min())
 
         image_out = pil_image_from_tensor(image_tensor)
         
@@ -110,28 +113,39 @@ class EquivalentAchromaticLightnessInvocation(BaseInvocation):
             height=image_dto.height
         )
 
-    
-   
+
 @invocation(
     "shmmask",
     title="Shadows/Highlights/Midtones",
     tags=["mask", "image", "shadows", "highlights", "midtones"],
     category="image",
-    version="1.0.3",
+    version="1.1.0",
 )
-class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
+class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation, WithMetadata, WithWorkflow):
     """Extract a Shadows/Highlights/Midtones mask from an image"""
 
     image: ImageField = InputField(description="Image from which to extract mask")
     invert_output: bool = InputField(
         default=True, description="Off: white on black / On: black on white"
     )
-    highlight_threshold: float = InputField(default=0.75, description="Threshold beyond which mask values will be at extremum")
-    upper_mid_threshold: float = InputField(default=0.7, description="Threshold to which to extend mask border by 0..1 gradient")
-    lower_mid_threshold: float = InputField(default=0.3, description="Threshold to which to extend mask border by 0..1 gradient")
-    shadow_threshold: float = InputField(default=0.25, description="Threshold beyond which mask values will be at extremum")
-    mask_expand_or_contract: int = InputField(default=0, description="Pixels to grow (or shrink) the mask areas")
-    mask_blur: float = InputField(default=0.0, description="Gaussian blur radius to apply to the masks")
+    highlight_threshold: float = InputField(
+        default=0.75, description="Threshold beyond which mask values will be at extremum"
+    )
+    upper_mid_threshold: float = InputField(
+        default=0.7, description="Threshold to which to extend mask border by 0..1 gradient"
+    )
+    lower_mid_threshold: float = InputField(
+        default=0.3, description="Threshold to which to extend mask border by 0..1 gradient"
+    )
+    shadow_threshold: float = InputField(
+        default=0.25, description="Threshold beyond which mask values will be at extremum"
+    )
+    mask_expand_or_contract: int = InputField(
+        default=0, description="Pixels to grow (or shrink) the mask areas"
+    )
+    mask_blur: float = InputField(
+        default=0.0, description="Gaussian blur radius to apply to the masks"
+    )
 
     def expand_or_contract(self, image_in):
         image_out = numpy.array(image_in)
@@ -248,7 +262,9 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
                 if (vmax_bottom == vmin_bottom):
                     img_tensor[mask_bottom] = vmin_bottom * ones_tensor
                 else:
-                    img_tensor[mask_bottom] = torch.sub(1.0, (img_tensor[mask_bottom] - vmin_bottom) / (vmax_bottom - vmin_bottom)) # lo is 1
+                    img_tensor[mask_bottom] = torch.sub(
+                        1.0, (img_tensor[mask_bottom] - vmin_bottom) / (vmax_bottom - vmin_bottom)
+                    ) # lo is 1
 
         img_tensor[mid_mask] = zeros_tensor[mid_mask]
         img_tensor[highlight_ones_mask] = ones_tensor[highlight_ones_mask]
@@ -261,7 +277,7 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation):
         image_in = context.services.images.get_pil_image(self.image.image_name)
         if image_in.mode != "L":
             image_in = image_in.convert("L")
-        image_tensor = image_resized_to_grid_as_tensor(image_in, normalize=False)
+        image_tensor = image_resized_to_grid_as_tensor(image_in, normalize=False, multiple_of=1)
         h_image_out = pil_image_from_tensor(self.get_highlights_mask(image_tensor), mode="L")
         if self.mask_expand_or_contract != 0:
             h_image_out = self.expand_or_contract(h_image_out)

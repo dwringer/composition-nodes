@@ -2,12 +2,14 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 if not hasattr(Image, 'Resampling'):
     Image.Resampling = Image  # (Compatibilty for Pillow earlier than v9)
 
-from invokeai.app.models.image import ImageCategory, ResourceOrigin
+from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
 from invokeai.app.invocations.baseinvocation import (
     BaseInvocation,
     InputField,
     invocation,
     InvocationContext,
+    WithMetadata,
+    WithWorkflow,
 )
 from invokeai.app.invocations.primitives import (
     ImageField,
@@ -20,9 +22,9 @@ from invokeai.app.invocations.primitives import (
     title="Text Mask",
     tags=["image", "text", "mask"],
     category="mask",
-    version="1.0.1"
+    version="1.1.0"
 )
-class TextMaskInvocation(BaseInvocation):
+class TextMaskInvocation(BaseInvocation, WithMetadata, WithWorkflow):
     """Creates a 2D rendering of a text mask from a given font"""
     width: int = InputField(default=512, description="The width of the desired mask")
     height: int = InputField(default=512, description="The height of the desired mask")

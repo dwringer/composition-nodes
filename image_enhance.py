@@ -3,7 +3,7 @@ from typing import Literal, Optional
 from PIL import Image, ImageOps, ImageEnhance, ImageDraw
 from pydantic import Field
 
-from invokeai.app.models.image import ImageCategory, ResourceOrigin
+from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
 from invokeai.app.invocations.baseinvocation import (
     BaseInvocation,
     BaseInvocationOutput,
@@ -11,6 +11,8 @@ from invokeai.app.invocations.baseinvocation import (
     invocation_output,
     InvocationContext,
     InputField,
+    WithMetadata,
+    WithWorkflow,
 )
 from invokeai.app.invocations.primitives import (
     ImageField,
@@ -22,9 +24,9 @@ from invokeai.app.invocations.primitives import (
     title="Enhance Image",
     tags=["enhance", "image"],
     category="image",
-    version="1.0.1",
+    version="1.1.0",
 )
-class ImageEnhanceInvocation(BaseInvocation):
+class ImageEnhanceInvocation(BaseInvocation, WithMetadata, WithWorkflow):
     """Applies processing from PIL's ImageEnhance module."""
     image:      ImageField = InputField(default=None, description="The image for which to apply processing")
     invert:     bool  = InputField(default=False, description="Whether to invert the image colors")

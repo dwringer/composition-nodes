@@ -10,12 +10,14 @@ from invokeai.app.invocations.baseinvocation import (
     InputField,
     InvocationContext,
     invocation,
+    WithMetadata,
+    WithWorkflow,
 )
 from invokeai.app.invocations.primitives import (
     ImageField,
     ImageOutput,
 )
-from invokeai.app.models.image import ImageCategory, ResourceOrigin
+from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
 from invokeai.backend.stable_diffusion.diffusers_pipeline import (
     image_resized_to_grid_as_tensor,
 )
@@ -26,9 +28,9 @@ from invokeai.backend.stable_diffusion.diffusers_pipeline import (
     title="Text to Mask (Clipseg)",
     tags=["image", "mask", "clip", "clipseg", "txt2mask"],
     category="image",
-    version="1.0.4",
+    version="1.1.0",
 )
-class TextToMaskClipsegInvocation(BaseInvocation):
+class TextToMaskClipsegInvocation(BaseInvocation, WithMetadata, WithWorkflow):
     """Uses the Clipseg model to generate an image mask from a text prompt"""
 
     image: ImageField = InputField(description="The image from which to create a mask")
