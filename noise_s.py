@@ -1,4 +1,5 @@
 # Copyright (c) 2023 Darren Ringer <https://github.com/dwringer/>
+# Implements the technique described at https://blog.demofox.org/2017/10/25/transmuting-white-noise-to-blue-red-green-purple/
 
 import math
 from typing import Literal
