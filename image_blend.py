@@ -136,7 +136,7 @@ class ImageBlendInvocation(BaseInvocation, WithMetadata, WithWorkflow):
         elif ((self.fit_to_width and (aspect_base < aspect_upper)) or
               (self.fit_to_height and (aspect_upper <= aspect_base))):
             image_upper = PIL.ImageOps.pad(image_upper, (image_base.width, image_base.height),
-                                           color=(0, 0, 0, 0))
+                                           color=tuple([0 for band in image_upper.getbands()]))
         elif ((self.fit_to_width and (aspect_upper <= aspect_base)) or
               (self.fit_to_height and (aspect_base < aspect_upper))):
             image_upper = PIL.ImageOps.fit(image_upper, (image_base.width, image_base.height))
