@@ -98,7 +98,7 @@ BLEND_COLOR_SPACES = [
     title="Image Layer Blend",
     tags=["image", "blend", "layer", "alpha", "composite", "dodge", "burn"],
     category="image",
-    version="1.1.0",
+    version="1.1.1",
 )
 class ImageBlendInvocation(BaseInvocation, WithMetadata, WithWorkflow):
     """Blend two images together, with optional opacity, mask, and blend modes"""
