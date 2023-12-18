@@ -5,23 +5,22 @@ import math
 from typing import Literal
 
 import cv2
-import scipy.stats
 import numpy
-import torch
 import PIL.Image
+import scipy.stats
+import torch
 
-from invokeai.app.util.misc import SEED_MAX, get_random_seed
-from invokeai.app.invocations.noise import NoiseOutput, build_noise_output
 from invokeai.app.invocations.baseinvocation import (
     BaseInvocation,
     InputField,
     InvocationContext,
     WithMetadata,
-    WithWorkflow,
     invocation,
 )
+from invokeai.app.invocations.noise import NoiseOutput, build_noise_output
 from invokeai.app.invocations.primitives import ImageField, ImageOutput
 from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
+from invokeai.app.util.misc import SEED_MAX, get_random_seed
 
 
 def flatten_histogram(image_array, seed=None):
@@ -74,7 +73,7 @@ def red_noise_array(width, height, iterations=5, sigma=0.5, radius=None, blur_th
     arr = white_noise_array(width, height, seed=seed, is_uint8=is_uint8)
     r = 2 * radius + 1
     s = math.sqrt(sigma*sigma/2)
-    for i in range(iterations):
+    for _i in range(iterations):
         arr = cv2.copyMakeBorder(arr, radius, radius, radius, radius, cv2.BORDER_WRAP,)
         arr = cv2.GaussianBlur(arr, (r, r), s, s)
         arr = arr[radius:-radius,radius:-radius].copy()
@@ -90,7 +89,7 @@ def blue_noise_array(width, height, iterations=5, sigma=1., radius=None, blur_th
     arr = white_noise_array(width, height, is_uint8=is_uint8)
     r = 2 * radius + 1
     s = math.sqrt(sigma*sigma/2)
-    for i in range(iterations):
+    for _i in range(iterations):
         blurred = cv2.copyMakeBorder(arr, radius, radius, radius, radius, cv2.BORDER_WRAP,)
         blurred = cv2.GaussianBlur(blurred, (r, r), s, s)
         arr = arr - blurred[radius:-radius,radius:-radius]
@@ -123,7 +122,7 @@ def green_noise_array(
     r_w = 2 * radius_weak + 1
     s_s = math.sqrt(sigma_strong*sigma_strong/2)
     s_w = math.sqrt(sigma_weak*sigma_weak/2)
-    for i in range(iterations):
+    for _i in range(iterations):
         b_strong = cv2.copyMakeBorder(arr, radius_strong, radius_strong, radius_strong, radius_strong, cv2.BORDER_WRAP,)
         b_strong = cv2.GaussianBlur(b_strong, (r_s, r_s), s_s, s_s)
         b_weak = cv2.copyMakeBorder(arr, radius_weak, radius_weak, radius_weak, radius_weak, cv2.BORDER_WRAP,)
@@ -143,7 +142,7 @@ def green_noise_image(
     )
 
 @invocation("noiseimg_2d", title="2D Noise Image", tags=["image", "noise"], category="image", version="1.1.0")
-class NoiseImage2DInvocation(BaseInvocation, WithMetadata, WithWorkflow):
+class NoiseImage2DInvocation(BaseInvocation, WithMetadata):
     """Creates an image of 2D Noise approximating the desired characteristics"""
 
     noise_type: Literal["White", "Red", "Blue", "Green"] = InputField(  # TODO: Pyramid Noise
@@ -156,7 +155,7 @@ class NoiseImage2DInvocation(BaseInvocation, WithMetadata, WithWorkflow):
     blur_threshold: float = InputField(default=0.2, description="Threshold used in computing noise (lower is better/slower)")
     sigma_red: float = InputField(default=3.0, description="Sigma for strong gaussian blur LPF for red/green")
     sigma_blue: float = InputField(default=1., description="Sigma for weak gaussian blur HPF for blue/green")
-    
+
     def invoke(self, context: InvocationContext) -> ImageOutput:
         image = None
         if self.noise_type == "White":
@@ -194,8 +193,8 @@ class NoiseImage2DInvocation(BaseInvocation, WithMetadata, WithWorkflow):
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            metadata=None,
-            workflow=self.workflow,
+            metadata=self.metadata,
+            workflow=context.workflow,
         )
 
         return ImageOutput(
@@ -219,7 +218,7 @@ class NoiseSpectralInvocation(BaseInvocation):
     blur_threshold: float = InputField(default=0.2, description="Threshold used in computing noise (lower is better/slower)")
     sigma_red: float = InputField(default=3.0, description="Sigma for strong gaussian blur LPF for red/green")
     sigma_blue: float = InputField(default=1., description="Sigma for weak gaussian blur HPF for blue/green")
-    
+
     def invoke(self, context: InvocationContext) -> NoiseOutput:
         latents = None
         w, h = self.width // 8, self.height // 8
@@ -236,7 +235,7 @@ class NoiseSpectralInvocation(BaseInvocation):
             arr /= math.sqrt(arr.var())
             arr = torch.from_numpy(arr)
             return arr
-        
+
         if self.noise_type == "White":
             latents = torch.stack(
                 [torchify(white_noise_array(w, h, seed=self.seed+i, is_uint8=False)) for i in range(4)]
@@ -255,7 +254,7 @@ class NoiseSpectralInvocation(BaseInvocation):
                         )
                     ) for i in range(4)
                 ]
-            ).unsqueeze(0).to('cpu')             
+            ).unsqueeze(0).to('cpu')
         elif self.noise_type == "Blue":
             latents = torch.stack(
                 [
@@ -286,9 +285,9 @@ class NoiseSpectralInvocation(BaseInvocation):
                         )
                     ) for i in range(4)
                 ]
-            ).unsqueeze(0).to('cpu')             
+            ).unsqueeze(0).to('cpu')
 
-            
+
         name = f"{context.graph_execution_state_id}__{self.id}"
         context.services.latents.save(name, latents)
         return build_noise_output(latents_name=name, latents=latents, seed=self.seed)
@@ -301,7 +300,7 @@ class NoiseSpectralInvocation(BaseInvocation):
     category="image",
     version="1.1.0"
 )
-class FlattenHistogramMono(BaseInvocation, WithMetadata, WithWorkflow):
+class FlattenHistogramMono(BaseInvocation, WithMetadata):
     """Scales the values of an L-mode image by scaling them to the full range 0..255 in equal proportions"""
 
     image: ImageField = InputField(description="Single-channel image for which to flatten the histogram")
@@ -318,8 +317,8 @@ class FlattenHistogramMono(BaseInvocation, WithMetadata, WithWorkflow):
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            metadata=None,
-            workflow=self.workflow,
+            metadata=self.metadata,
+            workflow=context.workflow,
         )
 
         return ImageOutput(

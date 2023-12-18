@@ -1,23 +1,16 @@
-from typing import Literal, Optional
 
-from PIL import Image, ImageOps, ImageEnhance, ImageDraw
-from pydantic import Field
+from PIL import ImageEnhance, ImageOps
 
-from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
 from invokeai.app.invocations.baseinvocation import (
     BaseInvocation,
-    BaseInvocationOutput,
-    invocation,
-    invocation_output,
-    InvocationContext,
     InputField,
+    InvocationContext,
     WithMetadata,
-    WithWorkflow,
+    invocation,
 )
-from invokeai.app.invocations.primitives import (
-    ImageField,
-    ImageOutput
-)
+from invokeai.app.invocations.primitives import ImageField, ImageOutput
+from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
+
 
 @invocation(
     "img_enhance",
@@ -26,7 +19,7 @@ from invokeai.app.invocations.primitives import (
     category="image",
     version="1.1.0",
 )
-class ImageEnhanceInvocation(BaseInvocation, WithMetadata, WithWorkflow):
+class ImageEnhanceInvocation(BaseInvocation, WithMetadata):
     """Applies processing from PIL's ImageEnhance module."""
     image:      ImageField = InputField(default=None, description="The image for which to apply processing")
     invert:     bool  = InputField(default=False, description="Whether to invert the image colors")
@@ -38,7 +31,7 @@ class ImageEnhanceInvocation(BaseInvocation, WithMetadata, WithWorkflow):
     def invoke(self, context: InvocationContext) -> ImageOutput:
         image_out = context.services.images.get_pil_image(self.image.image_name)
         if self.invert:
-            if not (image_out.mode in ("L", "RGB")):
+            if image_out.mode not in ("L", "RGB"):
                 image_out = image_out.convert('RGB')
             image_out = ImageOps.invert(image_out)
         if self.color != 1.0:
@@ -60,7 +53,8 @@ class ImageEnhanceInvocation(BaseInvocation, WithMetadata, WithWorkflow):
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            workflow=self.workflow,
+            metadata=self.metadata,
+            workflow=context.workflow,
         )
         return ImageOutput(image=ImageField(image_name=image_dto.image_name),
                            width=image_dto.width,

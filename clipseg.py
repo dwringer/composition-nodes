@@ -1,17 +1,16 @@
 import cv2
 import numpy
-from PIL import Image, ImageFilter
 import torch
+from PIL import Image, ImageFilter
 from torchvision.transforms.functional import to_pil_image as pil_image_from_tensor
-from transformers import CLIPSegProcessor, CLIPSegForImageSegmentation
+from transformers import CLIPSegForImageSegmentation, CLIPSegProcessor
 
 from invokeai.app.invocations.baseinvocation import (
     BaseInvocation,
     InputField,
     InvocationContext,
-    invocation,
     WithMetadata,
-    WithWorkflow,
+    invocation,
 )
 from invokeai.app.invocations.primitives import (
     ImageField,
@@ -21,7 +20,7 @@ from invokeai.app.services.image_records.image_records_common import ImageCatego
 from invokeai.backend.stable_diffusion.diffusers_pipeline import (
     image_resized_to_grid_as_tensor,
 )
-    
+
 
 @invocation(
     "txt2mask_clipseg",
@@ -30,7 +29,7 @@ from invokeai.backend.stable_diffusion.diffusers_pipeline import (
     category="image",
     version="1.1.0",
 )
-class TextToMaskClipsegInvocation(BaseInvocation, WithMetadata, WithWorkflow):
+class TextToMaskClipsegInvocation(BaseInvocation, WithMetadata):
     """Uses the Clipseg model to generate an image mask from a text prompt"""
 
     image: ImageField = InputField(description="The image from which to create a mask")
@@ -65,7 +64,7 @@ class TextToMaskClipsegInvocation(BaseInvocation, WithMetadata, WithWorkflow):
             zeros_mask, ones_mask = torch.ge(img_tensor, threshold_h), torch.lt(img_tensor, threshold_s)
         else:
             ones_mask, zeros_mask = torch.ge(img_tensor, threshold_h), torch.lt(img_tensor, threshold_s)
-            
+
         if not (threshold_h == threshold_s):
             mask_hi = torch.ge(img_tensor, threshold_s)
             mask_lo = torch.lt(img_tensor, threshold_h)
@@ -109,7 +108,7 @@ class TextToMaskClipsegInvocation(BaseInvocation, WithMetadata, WithWorkflow):
             iterations=1
         )
         return Image.fromarray(image_out, mode="L")
-    
+
 
     def invoke(self, context: InvocationContext) -> ImageOutput:
         image_in = context.services.images.get_pil_image(self.image.image_name)
@@ -121,14 +120,14 @@ class TextToMaskClipsegInvocation(BaseInvocation, WithMetadata, WithWorkflow):
         model = CLIPSegForImageSegmentation.from_pretrained("CIDAS/clipseg-rd64-refined")
 
         image_in = image_in.convert("RGB")
-        
+
         input_args = processor(
             text=[self.prompt], images=[image_in], padding="max_length", return_tensors="pt"
         )
 
         with torch.no_grad():
             output = model(**input_args)
-            
+
         predictions = output.logits
 
         image_out = pil_image_from_tensor(torch.sigmoid(predictions), mode="L")
@@ -147,7 +146,7 @@ class TextToMaskClipsegInvocation(BaseInvocation, WithMetadata, WithWorkflow):
 
         if self.mask_expand_or_contract != 0:
             image_out = self.expand_or_contract(image_out)
-        
+
         if 0 < self.mask_blur:
             image_out = image_out.filter(ImageFilter.GaussianBlur(radius=self.mask_blur))
 
@@ -158,7 +157,8 @@ class TextToMaskClipsegInvocation(BaseInvocation, WithMetadata, WithWorkflow):
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            workflow=self.workflow,
+            metadata=self.metadata,
+            workflow=context.workflow,
         )
         return ImageOutput(
             image=ImageField(image_name=image_dto.image_name),

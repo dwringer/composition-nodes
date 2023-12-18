@@ -1,24 +1,19 @@
-from math import sqrt, sin, cos, pi as PI
+from math import cos, sin, sqrt
+from math import pi as PI
 
-import PIL.Image
 import cv2
 import numpy
+import PIL.Image
 
-from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
 from invokeai.app.invocations.baseinvocation import (
     BaseInvocation,
     InputField,
-    invocation,
     InvocationContext,
-    OutputField,
     WithMetadata,
-    WithWorkflow,
+    invocation,
 )
-
-from invokeai.app.invocations.primitives import (
-    ImageField,
-    ImageOutput
-)
+from invokeai.app.invocations.primitives import ImageField, ImageOutput
+from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
 from invokeai.backend.stable_diffusion.diffusers_pipeline import (
     image_resized_to_grid_as_tensor,
 )
@@ -37,7 +32,7 @@ def tensor_from_pil_image(img, normalize=False):
     category="image",
     version="1.1.0",
 )
-class ImageRotateInvocation(BaseInvocation, WithMetadata, WithWorkflow):
+class ImageRotateInvocation(BaseInvocation, WithMetadata):
     """Rotates an image by a given angle (in degrees clockwise)."""
     image: ImageField = InputField(
         default=None, description="Image to be rotated clockwise"
@@ -60,7 +55,7 @@ class ImageRotateInvocation(BaseInvocation, WithMetadata, WithWorkflow):
 
         # TODO: Preserve mode, alpha
         image_in = image_in.convert('RGB')
-        
+
         image_width, image_height = image_in.size
 
         center_x = image_width // 2
@@ -95,14 +90,14 @@ class ImageRotateInvocation(BaseInvocation, WithMetadata, WithWorkflow):
             )
 
         transformation = rotation_matrix
-        if not (translation_matrix is None):
+        if translation_matrix is not None:
             transformation = (
                 numpy.vstack((translation_matrix, numpy.array([0, 0, 1]))) @  \
                 numpy.vstack((transformation, numpy.array([0, 0, 1])))
             )[:2,:]
 
         rgb_nparray = tensor_from_pil_image(image_in).movedim(0, 2).numpy()
-        
+
         rgb_nparray = (cv2.warpAffine(
             rgb_nparray, transformation, (new_width, new_height)
         ) * 255.).astype('uint8')
@@ -121,7 +116,8 @@ class ImageRotateInvocation(BaseInvocation, WithMetadata, WithWorkflow):
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            workflow=self.workflow,
+            metadata=self.metadata,
+            workflow=context.workflow,
         )
 
         return ImageOutput(

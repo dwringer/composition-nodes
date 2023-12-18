@@ -12,7 +12,6 @@ from invokeai.app.invocations.baseinvocation import (
     InputField,
     InvocationContext,
     WithMetadata,
-    WithWorkflow,
     invocation,
 )
 from invokeai.app.invocations.primitives import ImageField, ImageOutput
@@ -33,7 +32,7 @@ COMBINE_MODES: list = [
     category="image",
     version="1.1.0",
 )
-class TextToMaskClipsegAdvancedInvocation(BaseInvocation, WithMetadata, WithWorkflow):
+class TextToMaskClipsegAdvancedInvocation(BaseInvocation, WithMetadata):
     """Uses the Clipseg model to generate an image mask from a text prompt"""
 
     image: ImageField = InputField(description="The image from which to create a mask")
@@ -153,7 +152,7 @@ class TextToMaskClipsegAdvancedInvocation(BaseInvocation, WithMetadata, WithWork
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            workflow=self.workflow,
+            workflow=context.workflow,
             metadata=self.metadata,
         )
         return ImageOutput(
@@ -170,7 +169,7 @@ class TextToMaskClipsegAdvancedInvocation(BaseInvocation, WithMetadata, WithWork
     category="image",
     version="1.1.0",
 )
-class ImageValueThresholdsInvocation(BaseInvocation, WithMetadata, WithWorkflow):
+class ImageValueThresholdsInvocation(BaseInvocation, WithMetadata):
     """Clip image to pure black/white past specified thresholds"""
 
     image: ImageField = InputField(description="The image from which to create a mask")
@@ -268,7 +267,7 @@ class ImageValueThresholdsInvocation(BaseInvocation, WithMetadata, WithWorkflow)
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            workflow=self.workflow,
+            workflow=context.workflow,
             metadata=self.metadata,
         )
         return ImageOutput(
@@ -278,14 +277,20 @@ class ImageValueThresholdsInvocation(BaseInvocation, WithMetadata, WithWorkflow)
         )
 
 
+DILATE_ERODE_MODES: list = [
+    "Dilate",
+    "Erode",
+]
+
+
 @invocation(
     "img_dilate_erode",
     title="Image Dilate or Erode",
     tags=["image", "mask", "dilate", "erode", "expand", "contract", "mask"],
     category="image",
-    version="1.1.0",
+    version="1.2.0",
 )
-class ImageDilateOrErodeInvocation(BaseInvocation, WithMetadata, WithWorkflow):
+class ImageDilateOrErodeInvocation(BaseInvocation, WithMetadata):
     """Dilate (expand) or erode (contract) an image"""
 
     image: ImageField = InputField(description="The image from which to create a mask")
@@ -293,22 +298,36 @@ class ImageDilateOrErodeInvocation(BaseInvocation, WithMetadata, WithWorkflow):
         default=False,
         description="If true, only applies to image lightness (CIELa*b*)"
     )
-    radius: int = InputField(
+    radius_w: int = InputField(
+        ge=0,
         default=4,
-        description="Pixels by which to dilate(expand) or erode (contract) the image"
+        description="Width (in pixels) by which to dilate(expand) or erode (contract) the image"
+    )
+    radius_h: int = InputField(
+        ge=0,
+        default=4,
+        description="Height (in pixels) by which to dilate(expand) or erode (contract) the image"
+    )
+    mode: Literal[tuple(DILATE_ERODE_MODES)] = InputField(
+        default=DILATE_ERODE_MODES[0], description="How to operate on the image"
     )
 
     def expand_or_contract(self, image_in):
         image_out = numpy.array(image_in)
-        expand_radius = self.radius
+        expand_radius_w = self.radius_w
+        expand_radius_h = self.radius_h
+
+        if expand_radius_w + expand_radius_h == 0:
+            return Image.fromarray(image_out, mode=image_in.mode)
+
         expand_fn = None
         kernel = cv2.getStructuringElement(
             cv2.MORPH_ELLIPSE,
-            (abs(expand_radius * 2), abs(expand_radius * 2))
+            (expand_radius_w * 2, expand_radius_h * 2)
         )
-        if 0 < self.radius:
+        if self.mode == "Dilate":
             expand_fn = cv2.dilate
-        else:
+        elif self.mode == "Erode":
             expand_fn = cv2.erode
         image_out = expand_fn(image_out, kernel, iterations=1)
         return Image.fromarray(image_out, mode=image_in.mode)
@@ -355,7 +374,7 @@ class ImageDilateOrErodeInvocation(BaseInvocation, WithMetadata, WithWorkflow):
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
             metadata=self.metadata,
-            workflow=self.workflow,
+            workflow=context.workflow,
         )
         return ImageOutput(
             image=ImageField(

@@ -7,15 +7,13 @@ from invokeai.app.invocations.baseinvocation import (
     InputField,
     InvocationContext,
     invocation,
-    WithMetadata,
-    WithWorkflow,
 )
-from invokeai.backend.util.devices import choose_torch_device
 from invokeai.app.invocations.primitives import (
     LatentsField,
     LatentsOutput,
     build_latents_output,
 )
+from invokeai.backend.util.devices import choose_torch_device
 
 
 @invocation(

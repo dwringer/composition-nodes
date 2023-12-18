@@ -22,7 +22,6 @@ from invokeai.app.invocations.baseinvocation import (
     InvocationContext,
     invocation,
     WithMetadata,
-    WithWorkflow,
 )
 from invokeai.app.invocations.primitives import (
     ImageField,
@@ -100,7 +99,7 @@ BLEND_COLOR_SPACES = [
     category="image",
     version="1.1.1",
 )
-class ImageBlendInvocation(BaseInvocation, WithMetadata, WithWorkflow):
+class ImageBlendInvocation(BaseInvocation, WithMetadata):
     """Blend two images together, with optional opacity, mask, and blend modes"""
 
     layer_upper: ImageField = InputField(description="The top image to blend", ui_order=1)
@@ -982,7 +981,8 @@ class ImageBlendInvocation(BaseInvocation, WithMetadata, WithWorkflow):
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            workflow=self.workflow,
+            metadata=self.metadata,
+            workflow=context.workflow,
         )
         return ImageOutput(
             image=ImageField(image_name=image_dto.image_name),
@@ -998,7 +998,7 @@ class ImageBlendInvocation(BaseInvocation, WithMetadata, WithWorkflow):
     category="image",
     version="1.1.0",
 )
-class AdjustImageHuePlusInvocation(BaseInvocation, WithMetadata, WithWorkflow):
+class AdjustImageHuePlusInvocation(BaseInvocation, WithMetadata):
     """Adjusts the Hue of an image by rotating it in the selected color space"""
 
     image: ImageField = InputField(description="The image to adjust")
@@ -1223,7 +1223,8 @@ class AdjustImageHuePlusInvocation(BaseInvocation, WithMetadata, WithWorkflow):
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            workflow=self.workflow,
+            metadata=self.metadata,
+            workflow=context.workflow,
         )
         return ImageOutput(
             image=ImageField(image_name=image_dto.image_name),
