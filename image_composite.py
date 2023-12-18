@@ -1,23 +1,17 @@
 from ast import literal_eval as tuple_from_string
 from functools import reduce
 
-from PIL import Image, ImageOps, ImageChops, ImageDraw, ImageColor
+from PIL import Image, ImageChops, ImageColor, ImageDraw, ImageOps
 
-from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
 from invokeai.app.invocations.baseinvocation import (
     BaseInvocation,
     InputField,
-    invocation,
     InvocationContext,
-    OutputField,
     WithMetadata,
-    WithWorkflow,
+    invocation,
 )
-
-from invokeai.app.invocations.primitives import (
-    ImageField,
-    ImageOutput
-)
+from invokeai.app.invocations.primitives import ImageField, ImageOutput
+from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
 
 
 @invocation(
@@ -27,7 +21,7 @@ from invokeai.app.invocations.primitives import (
     category="image",
     version="1.1.0",
 )
-class ImageCompositorInvocation(BaseInvocation, WithMetadata, WithWorkflow):
+class ImageCompositorInvocation(BaseInvocation, WithMetadata):
     """Removes backdrop from subject image then overlays subject on background image"""
     image_subject:    ImageField = InputField(
         default=None, description="Image of the subject on a plain monochrome background"
@@ -49,7 +43,7 @@ class ImageCompositorInvocation(BaseInvocation, WithMetadata, WithWorkflow):
     def invoke(self, context: InvocationContext) -> ImageOutput:
         image_background = context.services.images.get_pil_image(self.image_background.image_name).convert(mode="RGBA")
         image_subject    = context.services.images.get_pil_image(self.image_subject.image_name).convert(mode="RGBA")
-        subject_aspect   = image_subject.width / image_subject.height
+        image_subject.width / image_subject.height
 
         # Handle backdrop removal:
         chroma_key = self.chroma_key.strip()
@@ -101,7 +95,8 @@ class ImageCompositorInvocation(BaseInvocation, WithMetadata, WithWorkflow):
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            workflow=self.workflow,
+            metadata=self.metadata,
+            workflow=context.workflow,
         )
 
         return ImageOutput(

@@ -1,23 +1,15 @@
-from ast import literal_eval as tuple_from_string
-from functools import reduce
 
-from PIL import Image, ImageOps, ImageChops, ImageDraw, ImageColor
+from PIL import ImageChops
 
-from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
 from invokeai.app.invocations.baseinvocation import (
     BaseInvocation,
     InputField,
-    invocation,
     InvocationContext,
-    OutputField,
     WithMetadata,
-    WithWorkflow,
+    invocation,
 )
-
-from invokeai.app.invocations.primitives import (
-    ImageField,
-    ImageOutput
-)
+from invokeai.app.invocations.primitives import ImageField, ImageOutput
+from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
 
 
 @invocation(
@@ -27,7 +19,7 @@ from invokeai.app.invocations.primitives import (
     category="image",
     version="1.1.0",
 )
-class ImageOffsetInvocation(BaseInvocation, WithMetadata, WithWorkflow):
+class ImageOffsetInvocation(BaseInvocation, WithMetadata):
     """Offsets an image by a given percentage (or pixel amount)."""
     as_pixels: bool = InputField(
         default=False, description="Interpret offsets as pixels rather than percentages"
@@ -61,7 +53,8 @@ class ImageOffsetInvocation(BaseInvocation, WithMetadata, WithWorkflow):
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            workflow=self.workflow,
+            metadata=self.metadata,
+            workflow=context.workflow,
         )
 
         return ImageOutput(

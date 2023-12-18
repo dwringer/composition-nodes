@@ -3,17 +3,6 @@ import torch
 import torchvision.transforms as T
 from torchvision.transforms.functional import resize as tv_resize
 
-from invokeai.app.invocations.primitives import (
-    ImageField,
-    LatentsField,
-    LatentsOutput,
-    build_latents_output,
-)
-
-from invokeai.backend.stable_diffusion.diffusers_pipeline import (
-    image_resized_to_grid_as_tensor,
-)
-from invokeai.backend.util.devices import choose_torch_device
 from invokeai.app.invocations.baseinvocation import (
     BaseInvocation,
     FieldDescriptions,
@@ -21,9 +10,17 @@ from invokeai.app.invocations.baseinvocation import (
     InputField,
     InvocationContext,
     invocation,
-    WithMetadata,
-    WithWorkflow,
 )
+from invokeai.app.invocations.primitives import (
+    ImageField,
+    LatentsField,
+    LatentsOutput,
+    build_latents_output,
+)
+from invokeai.backend.stable_diffusion.diffusers_pipeline import (
+    image_resized_to_grid_as_tensor,
+)
+from invokeai.backend.util.devices import choose_torch_device
 
 
 @invocation("lmblend", title="Blend Latents/Noise (Masked)", tags=["latents", "noise", "blend"], category="latents", version="1.1.0")
@@ -68,9 +65,9 @@ class MaskedBlendLatentsInvocation(BaseInvocation):
         mask_tensor = tv_resize(mask_tensor, latents_a.shape[-2:], T.InterpolationMode.BILINEAR, antialias=False)
 
         latents_b = self.replace_tensor_from_masked_tensor(latents_b, latents_a, mask_tensor)
-       
+
         if latents_a.shape != latents_b.shape:
-            raise "Latents to blend must be the same size."
+            raise ValueError("Latents to blend must be the same size.")
 
         # TODO:
         device = choose_torch_device()
@@ -122,4 +119,4 @@ class MaskedBlendLatentsInvocation(BaseInvocation):
         name = f"{context.graph_execution_state_id}__{self.id}"
         # context.services.latents.set(name, resized_latents)
         context.services.latents.save(name, blended_latents)
-        return build_latents_output(latents_name=name, latents=blended_latents)    
+        return build_latents_output(latents_name=name, latents=blended_latents)

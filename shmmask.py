@@ -1,5 +1,4 @@
-from math import sqrt, pi as PI
-from typing import Literal
+from math import pi as PI
 
 import cv2
 import numpy
@@ -7,25 +6,23 @@ import PIL.Image
 import torch
 from torchvision.transforms.functional import to_pil_image as pil_image_from_tensor
 
-from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
-from invokeai.app.invocations.primitives import (
-    ImageField,
-    ImageOutput,
-)
-
-from invokeai.backend.stable_diffusion.diffusers_pipeline import (
-    image_resized_to_grid_as_tensor,
-)
 from invokeai.app.invocations.baseinvocation import (
     BaseInvocation,
     BaseInvocationOutput,
     InputField,
     InvocationContext,
+    OutputField,
     WithMetadata,
-    WithWorkflow,
     invocation,
     invocation_output,
-    OutputField
+)
+from invokeai.app.invocations.primitives import (
+    ImageField,
+    ImageOutput,
+)
+from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
+from invokeai.backend.stable_diffusion.diffusers_pipeline import (
+    image_resized_to_grid_as_tensor,
 )
 
 
@@ -45,7 +42,7 @@ class ShadowsHighlightsMidtonesMasksOutput(BaseInvocationOutput):
     category="image",
     version="1.1.0",
 )
-class EquivalentAchromaticLightnessInvocation(BaseInvocation, WithMetadata, WithWorkflow):
+class EquivalentAchromaticLightnessInvocation(BaseInvocation, WithMetadata):
     """Calculate Equivalent Achromatic Lightness from image"""
 
     image: ImageField = InputField(description="Image from which to get channel")
@@ -54,13 +51,13 @@ class EquivalentAchromaticLightnessInvocation(BaseInvocation, WithMetadata, With
     #, and the hue, h, in the CIELAB color space are obtained by C*=sqrt((a*)^2+(b*)^2)
     #  and h=arctan(b*/a*)
     # k 0.1644	0.0603	0.1307	0.0060
-    
+
     def invoke(self, context: InvocationContext) -> ImageOutput:
         image_in = context.services.images.get_pil_image(self.image.image_name)
 
         if image_in.mode == "L":
             image_in = image_in.convert("RGB")
-        
+
         image_out = image_in.convert("LAB")
         channel_l = image_out.getchannel("L")
         channel_a = image_out.getchannel("A")
@@ -97,7 +94,7 @@ class EquivalentAchromaticLightnessInvocation(BaseInvocation, WithMetadata, With
         image_tensor = torch.div(torch.sub(image_tensor, l_min.min()), l_max.max() - l_min.min())
 
         image_out = pil_image_from_tensor(image_tensor)
-        
+
         image_dto = context.services.images.create(
             image=image_out,
             image_origin=ResourceOrigin.INTERNAL,
@@ -105,7 +102,8 @@ class EquivalentAchromaticLightnessInvocation(BaseInvocation, WithMetadata, With
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            workflow=self.workflow,
+            metadata=self.metadata,
+            workflow=context.workflow,
         )
         return ImageOutput(
             image=ImageField(image_name=image_dto.image_name),
@@ -121,7 +119,7 @@ class EquivalentAchromaticLightnessInvocation(BaseInvocation, WithMetadata, With
     category="image",
     version="1.1.0",
 )
-class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation, WithMetadata, WithWorkflow):
+class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation, WithMetadata):
     """Extract a Shadows/Highlights/Midtones mask from an image"""
 
     image: ImageField = InputField(description="Image from which to extract mask")
@@ -252,7 +250,7 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation, WithMetadata, With
                     img_tensor[mask_top] = vmin_top * ones_tensor
                 else:
                     img_tensor[mask_top] = (img_tensor[mask_top] - vmin_top) / (vmax_top - vmin_top) # hi is 1
-            
+
         if not (s_threshold_hard == s_threshold_soft):
             masked = img_tensor[mask_bottom]
             if 0 < masked.numel():
@@ -281,7 +279,7 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation, WithMetadata, With
         h_image_out = pil_image_from_tensor(self.get_highlights_mask(image_tensor), mode="L")
         if self.mask_expand_or_contract != 0:
             h_image_out = self.expand_or_contract(h_image_out)
-        
+
         if 0 < self.mask_blur:
             h_image_out = h_image_out.filter(
                 PIL.ImageFilter.GaussianBlur(radius=self.mask_blur)
@@ -293,12 +291,13 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation, WithMetadata, With
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            workflow=self.workflow,
+            metadata=self.metadata,
+            workflow=context.workflow,
         )
         m_image_out = pil_image_from_tensor(self.get_midtones_mask(image_tensor), mode="L")
         if self.mask_expand_or_contract != 0:
             m_image_out = self.expand_or_contract(m_image_out)
-        
+
         if 0 < self.mask_blur:
             m_image_out = m_image_out.filter(
                 PIL.ImageFilter.GaussianBlur(radius=self.mask_blur)
@@ -310,7 +309,8 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation, WithMetadata, With
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            workflow=self.workflow,
+            metadata=self.metadata,
+            workflow=context.workflow,
         )
         s_image_out = pil_image_from_tensor(self.get_shadows_mask(image_tensor), mode="L")
         if self.mask_expand_or_contract != 0:
@@ -326,7 +326,8 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation, WithMetadata, With
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            workflow=self.workflow,
+            metadata=self.metadata,
+            workflow=context.workflow,
         )
         return ShadowsHighlightsMidtonesMasksOutput(
             highlights_mask=ImageField(image_name=h_image_dto.image_name),
