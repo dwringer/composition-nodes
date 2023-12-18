@@ -299,12 +299,12 @@ class ImageDilateOrErodeInvocation(BaseInvocation, WithMetadata):
         description="If true, only applies to image lightness (CIELa*b*)"
     )
     radius_w: int = InputField(
-        ge=0,
+        gt=0,
         default=4,
         description="Width (in pixels) by which to dilate(expand) or erode (contract) the image"
     )
     radius_h: int = InputField(
-        ge=0,
+        gt=0,
         default=4,
         description="Height (in pixels) by which to dilate(expand) or erode (contract) the image"
     )
@@ -316,9 +316,6 @@ class ImageDilateOrErodeInvocation(BaseInvocation, WithMetadata):
         image_out = numpy.array(image_in)
         expand_radius_w = self.radius_w
         expand_radius_h = self.radius_h
-
-        if expand_radius_w + expand_radius_h == 0:
-            return Image.fromarray(image_out, mode=image_in.mode)
 
         expand_fn = None
         kernel = cv2.getStructuringElement(
