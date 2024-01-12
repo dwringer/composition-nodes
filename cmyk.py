@@ -1,9 +1,10 @@
 import math
-import os, os.path
+import os
+import os.path
 from typing import Literal, Optional
 
 import numpy
-from PIL import Image, ImageCms, ImageFilter
+from PIL import Image, ImageCms
 
 from invokeai.app.invocations.baseinvocation import (
     BaseInvocation,
@@ -12,27 +13,25 @@ from invokeai.app.invocations.baseinvocation import (
     InvocationContext,
     OutputField,
     WithMetadata,
-    WithWorkflow,
     invocation,
     invocation_output,
 )
 from invokeai.app.invocations.primitives import ImageField, ImageOutput
 from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
 
-
 COLOR_PROFILES_DIR = "nodes/color-profiles/"
 
 
 def load_profiles() -> list:
     """Load available ICC profile filenames from COLOR_PROFILES_DIR into a dict"""
-    
+
     path = COLOR_PROFILES_DIR.strip('/')
     profiles = {
         "Default": "Default",
         "PIL": "PIL"
     }
     extensions = [".icc", ".icm"]
-    
+
     if os.path.exists(path):
         for icc_filename in os.listdir(path):
             if icc_filename[-4:].lower() in extensions:
@@ -57,7 +56,7 @@ def load_profiles() -> list:
 
                 name = None
                 if ((manufacturer is None) and (model is None)) or  \
-                   ((not (manufacturer is None) or (model is None)) and (desc_ext is None)):
+                   ((manufacturer is not None or (model is None)) and (desc_ext is None)):
                     if desc_ext is None:
                         name = description
                     else:
@@ -91,7 +90,7 @@ class CMYKSplitOutput(BaseInvocationOutput):
 
 
 @invocation("cmyk_split", title="CMYK Split", tags=["cmyk", "image", "color"], category="image", version="1.1.0")
-class CMYKSplitInvocation(BaseInvocation, WithWorkflow, WithMetadata):
+class CMYKSplitInvocation(BaseInvocation, WithMetadata):
     """Split an image into subtractive color channels (CMYK+alpha)"""
 
     image: ImageField = InputField(description="The image to halftone", default=None)
@@ -156,8 +155,8 @@ class CMYKSplitInvocation(BaseInvocation, WithWorkflow, WithMetadata):
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            metadata=None,
-            workflow=self.workflow,
+            metadata=self.metadata,
+            workflow=context.workflow,
         )
         image_m_dto = context.services.images.create(
             image=Image.fromarray(numpy.array(m)),
@@ -166,8 +165,8 @@ class CMYKSplitInvocation(BaseInvocation, WithWorkflow, WithMetadata):
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            metadata=None,
-            workflow=self.workflow,
+            metadata=self.metadata,
+            workflow=context.workflow,
         )
         image_y_dto = context.services.images.create(
             image=Image.fromarray(numpy.array(y)),
@@ -176,8 +175,8 @@ class CMYKSplitInvocation(BaseInvocation, WithWorkflow, WithMetadata):
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            metadata=None,
-            workflow=self.workflow,
+            metadata=self.metadata,
+            workflow=context.workflow,
         )
         image_k_dto = context.services.images.create(
             image=Image.fromarray(numpy.array(k)),
@@ -186,8 +185,8 @@ class CMYKSplitInvocation(BaseInvocation, WithWorkflow, WithMetadata):
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            metadata=None,
-            workflow=self.workflow,
+            metadata=self.metadata,
+            workflow=context.workflow,
         )
         image_alpha_dto = context.services.images.create(
             image=Image.fromarray(numpy.array(alpha_channel)),
@@ -196,8 +195,8 @@ class CMYKSplitInvocation(BaseInvocation, WithWorkflow, WithMetadata):
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            metadata=None,
-            workflow=self.workflow,
+            metadata=self.metadata,
+            workflow=context.workflow,
         )
 
         return CMYKSplitOutput(
@@ -212,7 +211,7 @@ class CMYKSplitInvocation(BaseInvocation, WithWorkflow, WithMetadata):
 
 
 @invocation("cmyk_merge", title="CMYK Merge", tags=["cmyk", "image", "color"], category="image", version="1.1.0")
-class CMYKMergeInvocation(BaseInvocation, WithWorkflow, WithMetadata):
+class CMYKMergeInvocation(BaseInvocation, WithMetadata):
     """Merge subtractive color channels (CMYK+alpha)"""
 
     c_channel: Optional[ImageField] = InputField(description="The c channel", default=None)
@@ -264,19 +263,19 @@ class CMYKMergeInvocation(BaseInvocation, WithWorkflow, WithMetadata):
 
     def invoke(self, context: InvocationContext) -> ImageOutput:
         c_image, m_image, y_image, k_image, alpha_image = None, None, None, None, None
-        if not (self.c_channel is None):
+        if self.c_channel is not None:
             c_image = context.services.images.get_pil_image(self.c_channel.image_name)
             c_image = c_image.convert("L")
-        if not (self.m_channel is None):
+        if self.m_channel is not None:
             m_image = context.services.images.get_pil_image(self.m_channel.image_name)
             m_image = m_image.convert("L")
-        if not (self.y_channel is None):
+        if self.y_channel is not None:
             y_image = context.services.images.get_pil_image(self.y_channel.image_name)
             y_image = y_image.convert("L")
-        if not (self.k_channel is None):
+        if self.k_channel is not None:
             k_image = context.services.images.get_pil_image(self.k_channel.image_name)
             k_image = k_image.convert("L")
-        if not (self.alpha_channel is None):            
+        if self.alpha_channel is not None:
             alpha_image = context.services.images.get_pil_image(self.alpha_channel.image_name)
             alpha_image = alpha_image.convert("L")
 
@@ -296,7 +295,7 @@ class CMYKMergeInvocation(BaseInvocation, WithWorkflow, WithMetadata):
             y_image = Image.new("L", image_size, color=0)
         if k_image is None:
             k_image = Image.new("L", image_size, color=0)
-            
+
         cmyk = Image.merge("CMYK", (c_image, m_image, y_image, k_image))
 
         image = self.convert_cmyk_to_rgb(cmyk)
@@ -305,7 +304,7 @@ class CMYKMergeInvocation(BaseInvocation, WithWorkflow, WithMetadata):
             image = image.convert("RGBA")
             image.putalpha(alpha_image)
         image = Image.fromarray(numpy.array(image), mode=image.mode)
-        
+
         image_dto = context.services.images.create(
             image=image,
             image_origin=ResourceOrigin.INTERNAL,
@@ -313,8 +312,8 @@ class CMYKMergeInvocation(BaseInvocation, WithWorkflow, WithMetadata):
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            metadata=None,
-            workflow=self.workflow,
+            metadata=self.metadata,
+            workflow=context.workflow,
         )
 
         return ImageOutput(
@@ -341,7 +340,7 @@ class CMYKSeparationOutput(BaseInvocationOutput):
 
 
 @invocation("cmyk_separation", title="CMYK Color Separation", tags=["image", "cmyk", "separation", "color"], category="image", version="1.1.0")
-class CMYKColorSeparationInvocation(BaseInvocation, WithWorkflow, WithMetadata):
+class CMYKColorSeparationInvocation(BaseInvocation, WithMetadata):
     """Get color images from a base color and two others that subtractively mix to obtain it"""
     width: int = InputField(default=512, description="Desired image width")
     height: int = InputField(default=512, description="Desired image height")
@@ -438,8 +437,8 @@ class CMYKColorSeparationInvocation(BaseInvocation, WithWorkflow, WithMetadata):
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            metadata=None,
-            workflow=self.workflow,
+            metadata=self.metadata,
+            workflow=context.workflow,
         )
         image_dto_a = context.services.images.create(
             image=image_a,
@@ -448,8 +447,8 @@ class CMYKColorSeparationInvocation(BaseInvocation, WithWorkflow, WithMetadata):
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            metadata=None,
-            workflow=self.workflow,
+            metadata=self.metadata,
+            workflow=context.workflow,
         )
         image_dto_b = context.services.images.create(
             image=image_b,
@@ -458,8 +457,8 @@ class CMYKColorSeparationInvocation(BaseInvocation, WithWorkflow, WithMetadata):
             node_id=self.id,
             session_id=context.graph_execution_state_id,
             is_intermediate=self.is_intermediate,
-            metadata=None,
-            workflow=self.workflow,
+            metadata=self.metadata,
+            workflow=context.workflow,
         )
 
         return CMYKSeparationOutput(
