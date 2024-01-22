@@ -86,7 +86,7 @@ def red_noise_image(width, height, iterations=5, sigma=0.5, radius=None, blur_th
 def blue_noise_array(width, height, iterations=5, sigma=1., radius=None, blur_threshold=0.005, seed=None, is_uint8=True):
     if radius is None:
         radius = int(math.floor(1. + 2. * math.sqrt(-2. * sigma * sigma * math.log(blur_threshold)))) + 1
-    arr = white_noise_array(width, height, is_uint8=is_uint8)
+    arr = white_noise_array(width, height, seed=seed, is_uint8=is_uint8)
     r = 2 * radius + 1
     s = math.sqrt(sigma*sigma/2)
     for _i in range(iterations):
@@ -141,7 +141,7 @@ def green_noise_image(
         )*255.).astype('uint8'), mode="L"
     )
 
-@invocation("noiseimg_2d", title="2D Noise Image", tags=["image", "noise"], category="image", version="1.1.0")
+@invocation("noiseimg_2d", title="2D Noise Image", tags=["image", "noise"], category="image", version="1.1.1")
 class NoiseImage2DInvocation(BaseInvocation, WithMetadata):
     """Creates an image of 2D Noise approximating the desired characteristics"""
 
@@ -204,7 +204,7 @@ class NoiseImage2DInvocation(BaseInvocation, WithMetadata):
         )
 
 
-@invocation("noise_spectral", title="Noise (Spectral characteristics)", tags=["noise"], category="noise", version="1.1.0")
+@invocation("noise_spectral", title="Noise (Spectral characteristics)", tags=["noise"], category="noise", version="1.1.2")
 class NoiseSpectralInvocation(BaseInvocation):
     """Creates an image of 2D Noise approximating the desired characteristics"""
 
@@ -298,7 +298,7 @@ class NoiseSpectralInvocation(BaseInvocation):
     title="Flatten Histogram (Grayscale)",
     tags=["noise", "image"],
     category="image",
-    version="1.1.0"
+    version="1.1.1"
 )
 class FlattenHistogramMono(BaseInvocation, WithMetadata):
     """Scales the values of an L-mode image by scaling them to the full range 0..255 in equal proportions"""
