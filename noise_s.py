@@ -262,7 +262,7 @@ class NoiseSpectralInvocation(BaseInvocation):
                         blue_noise_array(
                             w, h,
                             iterations=self.iterations,
-                            sigma=self.sigma_red,
+                            sigma=self.sigma_blue,
                             blur_threshold=self.blur_threshold/100.,
                             seed=self.seed+i,
                             is_uint8=False,
