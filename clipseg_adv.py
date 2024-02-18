@@ -21,6 +21,7 @@ from invokeai.backend.stable_diffusion.diffusers_pipeline import image_resized_t
 COMBINE_MODES: list = [
     "or",
     "and",
+    "butnot",
     "none (rgba multiplex)",
 ]
 
@@ -124,6 +125,15 @@ class TextToMaskClipsegAdvancedInvocation(BaseInvocation, WithMetadata):
             for i in range(predictions.shape[0] - 1):
                 combined = torch.mul(combined, torch.add(torch.mul(predictions[i + 1, :, :], -1.0), 1.0))
             predictions = torch.add(torch.mul(combined, -1.0), 1.0)
+            image_out = pil_image_from_tensor(predictions, mode="L")
+
+        elif combine_mode == "butnot":
+            combined = predictions[0, :, :]
+            for i in range(predictions.shape[0] -1):
+                combined = torch.mul(combined,
+                                     torch.sub(1.0,
+                                               predictions[i + 1, :, :]))
+            predictions = combined
             image_out = pil_image_from_tensor(predictions, mode="L")
 
         else:
