@@ -5,17 +5,15 @@ from torchvision.transforms.functional import resize as tv_resize
 
 from invokeai.app.invocations.baseinvocation import (
     BaseInvocation,
-    FieldDescriptions,
     Input,
-    InputField,
     InvocationContext,
     invocation,
 )
+from invokeai.app.invocations.fields import FieldDescriptions, InputField
 from invokeai.app.invocations.primitives import (
     ImageField,
     LatentsField,
     LatentsOutput,
-    build_latents_output,
 )
 from invokeai.backend.stable_diffusion.diffusers_pipeline import (
     image_resized_to_grid_as_tensor,
@@ -23,7 +21,13 @@ from invokeai.backend.stable_diffusion.diffusers_pipeline import (
 from invokeai.backend.util.devices import choose_torch_device
 
 
-@invocation("lmblend", title="Blend Latents/Noise (Masked)", tags=["latents", "noise", "blend"], category="latents", version="1.1.0")
+@invocation(
+    "lmblend",
+    title="Blend Latents/Noise (Masked)",
+    tags=["latents", "noise", "blend"],
+    category="latents",
+    version="1.2.0",
+)
 class MaskedBlendLatentsInvocation(BaseInvocation):
     """Blend two latents using a given alpha and mask. Latents must have same size."""
 
@@ -56,11 +60,9 @@ class MaskedBlendLatentsInvocation(BaseInvocation):
         return output
 
     def invoke(self, context: InvocationContext) -> LatentsOutput:
-        latents_a = context.services.latents.get(self.latents_a.latents_name)
-        latents_b = context.services.latents.get(self.latents_b.latents_name)
-        mask_tensor = self.prep_mask_tensor(
-            context.services.images.get_pil_image(self.mask.image_name)
-        )
+        latents_a = context.tensors.load(self.latents_a.latents_name)
+        latents_b = context.tensors.load(self.latents_b.latents_name)
+        mask_tensor = self.prep_mask_tensor(context.images.get_pil(self.mask.image_name))
 
         mask_tensor = tv_resize(mask_tensor, latents_a.shape[-2:], T.InterpolationMode.BILINEAR, antialias=False)
 
@@ -116,7 +118,5 @@ class MaskedBlendLatentsInvocation(BaseInvocation):
         blended_latents = blended_latents.to("cpu")
         torch.cuda.empty_cache()
 
-        name = f"{context.graph_execution_state_id}__{self.id}"
-        # context.services.latents.set(name, resized_latents)
-        context.services.latents.save(name, blended_latents)
-        return build_latents_output(latents_name=name, latents=blended_latents)
+        name = context.tensors.save(tensor=blended_latents)
+        return LatentsOutput.build(latents_name=name, latents=blended_latents)
