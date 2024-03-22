@@ -7,11 +7,10 @@ from transformers import CLIPSegForImageSegmentation, CLIPSegProcessor
 
 from invokeai.app.invocations.baseinvocation import (
     BaseInvocation,
-    InputField,
     InvocationContext,
-    WithMetadata,
     invocation,
 )
+from invokeai.app.invocations.fields import InputField, WithBoard, WithMetadata
 from invokeai.app.invocations.primitives import (
     ImageField,
     ImageOutput,
@@ -27,31 +26,23 @@ from invokeai.backend.stable_diffusion.diffusers_pipeline import (
     title="Text to Mask (Clipseg)",
     tags=["image", "mask", "clip", "clipseg", "txt2mask"],
     category="image",
-    version="1.1.0",
+    version="1.2.0",
 )
-class TextToMaskClipsegInvocation(BaseInvocation, WithMetadata):
+class TextToMaskClipsegInvocation(BaseInvocation, WithMetadata, WithBoard):
     """Uses the Clipseg model to generate an image mask from a text prompt"""
 
     image: ImageField = InputField(description="The image from which to create a mask")
-    invert_output: bool = InputField(
-        default=True, description="Off: white on black / On: black on white"
-    )
+    invert_output: bool = InputField(default=True, description="Off: white on black / On: black on white")
     prompt: str = InputField(description="The prompt with which to create a mask")
-    smoothing: float = InputField(
-        default=4.0, description="Radius of blur to apply before thresholding"
-    )
-    subject_threshold: float = InputField(
-        default=0.4, description="Threshold above which is considered the subject"
-    )
+    smoothing: float = InputField(default=4.0, description="Radius of blur to apply before thresholding")
+    subject_threshold: float = InputField(default=0.4, description="Threshold above which is considered the subject")
     background_threshold: float = InputField(
         default=0.4, description="Threshold below which is considered the background"
     )
     mask_expand_or_contract: int = InputField(
         default=0, description="Pixels by which to grow (or shrink) mask after thresholding"
     )
-    mask_blur: float = InputField(
-        default=0.0, description="Radius of blur to apply after thresholding"
-    )
+    mask_blur: float = InputField(default=0.0, description="Radius of blur to apply after thresholding")
 
     def get_threshold_mask(self, image_tensor):
         img_tensor = image_tensor.clone()
@@ -72,7 +63,7 @@ class TextToMaskClipsegInvocation(BaseInvocation, WithMetadata):
             masked = img_tensor[mask]
             if 0 < masked.numel():
                 vmax, vmin = max(threshold_h, threshold_s), min(threshold_h, threshold_s)
-                if (vmax == vmin):
+                if vmax == vmin:
                     img_tensor[mask] = vmin * ones_tensor[mask]
                 elif self.invert_output:
                     img_tensor[mask] = torch.sub(1.0, (img_tensor[mask] - vmin) / (vmax - vmin))
@@ -84,14 +75,11 @@ class TextToMaskClipsegInvocation(BaseInvocation, WithMetadata):
 
         return img_tensor
 
-
     def expand_or_contract(self, image_in):
         image_out = numpy.array(image_in)
         expand_radius = self.mask_expand_or_contract
         expand_fn = None
-        kernel = cv2.getStructuringElement(
-            cv2.MORPH_ELLIPSE, (abs(expand_radius * 2), abs(expand_radius * 2))
-        )
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (abs(expand_radius * 2), abs(expand_radius * 2)))
         if 0 < self.mask_expand_or_contract:
             if self.invert_output:
                 expand_fn = cv2.erode
@@ -102,16 +90,11 @@ class TextToMaskClipsegInvocation(BaseInvocation, WithMetadata):
                 expand_fn = cv2.dilate
             else:
                 expand_fn = cv2.erode
-        image_out = expand_fn(
-            image_out,
-            kernel,
-            iterations=1
-        )
+        image_out = expand_fn(image_out, kernel, iterations=1)
         return Image.fromarray(image_out, mode="L")
 
-
     def invoke(self, context: InvocationContext) -> ImageOutput:
-        image_in = context.services.images.get_pil_image(self.image.image_name)
+        image_in = context.images.get_pil(self.image.image_name)
         image_size = image_in.size
         image_out = None
 
@@ -121,9 +104,7 @@ class TextToMaskClipsegInvocation(BaseInvocation, WithMetadata):
 
         image_in = image_in.convert("RGB")
 
-        input_args = processor(
-            text=[self.prompt], images=[image_in], padding="max_length", return_tensors="pt"
-        )
+        input_args = processor(text=[self.prompt], images=[image_in], padding="max_length", return_tensors="pt")
 
         with torch.no_grad():
             output = model(**input_args)
@@ -150,18 +131,6 @@ class TextToMaskClipsegInvocation(BaseInvocation, WithMetadata):
         if 0 < self.mask_blur:
             image_out = image_out.filter(ImageFilter.GaussianBlur(radius=self.mask_blur))
 
-        image_dto = context.services.images.create(
-            image=image_out,
-            image_origin=ResourceOrigin.INTERNAL,
-            image_category=ImageCategory.GENERAL,
-            node_id=self.id,
-            session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate,
-            metadata=self.metadata,
-            workflow=context.workflow,
-        )
-        return ImageOutput(
-            image=ImageField(image_name=image_dto.image_name),
-            width=image_dto.width,
-            height=image_dto.height
-        )
+        image_dto = context.images.save(image_out)
+
+        return ImageOutput.build(image_dto)

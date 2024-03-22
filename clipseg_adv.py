@@ -9,11 +9,10 @@ from transformers import CLIPSegForImageSegmentation, CLIPSegProcessor
 
 from invokeai.app.invocations.baseinvocation import (
     BaseInvocation,
-    InputField,
     InvocationContext,
-    WithMetadata,
     invocation,
 )
+from invokeai.app.invocations.fields import InputField, WithBoard, WithMetadata
 from invokeai.app.invocations.primitives import ImageField, ImageOutput
 from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
 from invokeai.backend.stable_diffusion.diffusers_pipeline import image_resized_to_grid_as_tensor
@@ -30,9 +29,9 @@ COMBINE_MODES: list = [
     title="Text to Mask Advanced (Clipseg)",
     tags=["image", "mask", "clip", "clipseg", "txt2mask", "advanced"],
     category="image",
-    version="1.1.0",
+    version="1.2.0",
 )
-class TextToMaskClipsegAdvancedInvocation(BaseInvocation, WithMetadata):
+class TextToMaskClipsegAdvancedInvocation(BaseInvocation, WithMetadata, WithBoard):
     """Uses the Clipseg model to generate an image mask from a text prompt"""
 
     image: ImageField = InputField(description="The image from which to create a mask")
@@ -45,9 +44,7 @@ class TextToMaskClipsegAdvancedInvocation(BaseInvocation, WithMetadata):
         default=COMBINE_MODES[0], description="How to combine the results"
     )
     smoothing: float = InputField(default=4.0, description="Radius of blur to apply before thresholding")
-    subject_threshold: float = InputField(
-        default=1.0,
-        description="Threshold above which is considered the subject")
+    subject_threshold: float = InputField(default=1.0, description="Threshold above which is considered the subject")
     background_threshold: float = InputField(
         default=0.0, description="Threshold below which is considered the background"
     )
@@ -84,7 +81,7 @@ class TextToMaskClipsegAdvancedInvocation(BaseInvocation, WithMetadata):
         return img_tensor
 
     def invoke(self, context: InvocationContext) -> ImageOutput:
-        image_in = context.services.images.get_pil_image(self.image.image_name)
+        image_in = context.images.get_pil(self.image.image_name)
         image_size = image_in.size
         image_out = None
 
@@ -145,21 +142,9 @@ class TextToMaskClipsegAdvancedInvocation(BaseInvocation, WithMetadata):
         image_out = self.get_threshold_mask(image_out)
         image_out = pil_image_from_tensor(image_out)
 
-        image_dto = context.services.images.create(
-            image=image_out,
-            image_origin=ResourceOrigin.INTERNAL,
-            image_category=ImageCategory.GENERAL,
-            node_id=self.id,
-            session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate,
-            workflow=context.workflow,
-            metadata=self.metadata,
-        )
-        return ImageOutput(
-            image=ImageField(image_name=image_dto.image_name),
-            width=image_dto.width,
-            height=image_dto.height
-        )
+        image_dto = context.images.save(image_out)
+
+        return ImageOutput.build(image_dto)
 
 
 @invocation(
@@ -167,27 +152,17 @@ class TextToMaskClipsegAdvancedInvocation(BaseInvocation, WithMetadata):
     title="Image Value Thresholds",
     tags=["image", "mask", "value", "threshold"],
     category="image",
-    version="1.1.0",
+    version="1.2.0",
 )
-class ImageValueThresholdsInvocation(BaseInvocation, WithMetadata):
+class ImageValueThresholdsInvocation(BaseInvocation, WithMetadata, WithBoard):
     """Clip image to pure black/white past specified thresholds"""
 
     image: ImageField = InputField(description="The image from which to create a mask")
     invert_output: bool = InputField(default=False, description="Make light areas dark and vice versa")
-    renormalize_values: bool = InputField(
-        default=False,
-        description="Rescale remaining values from minimum to maximum"
-    )
-    lightness_only: bool = InputField(
-        default=False,
-        description="If true, only applies to image lightness (CIELa*b*)"
-    )
-    threshold_upper: float = InputField(
-        default=0.5, description="Threshold above which will be set to full value"
-    )
-    threshold_lower: float = InputField(
-        default=0.5, description="Threshold below which will be set to minimum value"
-    )
+    renormalize_values: bool = InputField(default=False, description="Rescale remaining values from minimum to maximum")
+    lightness_only: bool = InputField(default=False, description="If true, only applies to image lightness (CIELa*b*)")
+    threshold_upper: float = InputField(default=0.5, description="Threshold above which will be set to full value")
+    threshold_lower: float = InputField(default=0.5, description="Threshold below which will be set to minimum value")
 
     def get_threshold_mask(self, image_tensor):
         img_tensor = image_tensor.clone()
@@ -222,7 +197,7 @@ class ImageValueThresholdsInvocation(BaseInvocation, WithMetadata):
         return img_tensor
 
     def invoke(self, context: InvocationContext) -> ImageOutput:
-        image_in = context.services.images.get_pil_image(self.image.image_name)
+        image_in = context.images.get_pil(self.image.image_name)
 
         if self.lightness_only:
             image_mode = image_in.mode
@@ -244,10 +219,7 @@ class ImageValueThresholdsInvocation(BaseInvocation, WithMetadata):
             l_channel = self.get_threshold_mask(l_channel)
             l_channel = pil_image_from_tensor(l_channel)
 
-            image_out = Image.merge(
-                "LAB",
-                (l_channel, image_out.getchannel("A"), image_out.getchannel("B"))
-            )
+            image_out = Image.merge("LAB", (l_channel, image_out.getchannel("A"), image_out.getchannel("B")))
             if (image_mode == "L") or (image_mode == "P"):
                 image_out = image_out.convert("RGB")
             image_out = image_out.convert(image_mode)
@@ -260,21 +232,9 @@ class ImageValueThresholdsInvocation(BaseInvocation, WithMetadata):
             image_out = self.get_threshold_mask(image_out)
             image_out = pil_image_from_tensor(image_out)
 
-        image_dto = context.services.images.create(
-            image=image_out,
-            image_origin=ResourceOrigin.INTERNAL,
-            image_category=ImageCategory.GENERAL,
-            node_id=self.id,
-            session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate,
-            workflow=context.workflow,
-            metadata=self.metadata,
-        )
-        return ImageOutput(
-            image=ImageField(image_name=image_dto.image_name),
-            width=image_dto.width,
-            height=image_dto.height
-        )
+        image_dto = context.images.save(image_out)
+
+        return ImageOutput.build(image_dto)
 
 
 DILATE_ERODE_MODES: list = [
@@ -288,25 +248,18 @@ DILATE_ERODE_MODES: list = [
     title="Image Dilate or Erode",
     tags=["image", "mask", "dilate", "erode", "expand", "contract", "mask"],
     category="image",
-    version="1.2.0",
+    version="1.3.0",
 )
 class ImageDilateOrErodeInvocation(BaseInvocation, WithMetadata):
     """Dilate (expand) or erode (contract) an image"""
 
     image: ImageField = InputField(description="The image from which to create a mask")
-    lightness_only: bool = InputField(
-        default=False,
-        description="If true, only applies to image lightness (CIELa*b*)"
-    )
+    lightness_only: bool = InputField(default=False, description="If true, only applies to image lightness (CIELa*b*)")
     radius_w: int = InputField(
-        ge=0,
-        default=4,
-        description="Width (in pixels) by which to dilate(expand) or erode (contract) the image"
+        ge=0, default=4, description="Width (in pixels) by which to dilate(expand) or erode (contract) the image"
     )
     radius_h: int = InputField(
-        ge=0,
-        default=4,
-        description="Height (in pixels) by which to dilate(expand) or erode (contract) the image"
+        ge=0, default=4, description="Height (in pixels) by which to dilate(expand) or erode (contract) the image"
     )
     mode: Literal[tuple(DILATE_ERODE_MODES)] = InputField(
         default=DILATE_ERODE_MODES[0], description="How to operate on the image"
@@ -318,10 +271,7 @@ class ImageDilateOrErodeInvocation(BaseInvocation, WithMetadata):
         expand_radius_h = self.radius_h
 
         expand_fn = None
-        kernel = cv2.getStructuringElement(
-            cv2.MORPH_ELLIPSE,
-            (expand_radius_w * 2 + 1, expand_radius_h * 2 + 1)
-        )
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (expand_radius_w * 2 + 1, expand_radius_h * 2 + 1))
         if self.mode == "Dilate":
             expand_fn = cv2.dilate
         elif self.mode == "Erode":
@@ -330,7 +280,7 @@ class ImageDilateOrErodeInvocation(BaseInvocation, WithMetadata):
         return Image.fromarray(image_out, mode=image_in.mode)
 
     def invoke(self, context: InvocationContext) -> ImageOutput:
-        image_in = context.services.images.get_pil_image(self.image.image_name)
+        image_in = context.images.get_pil(self.image.image_name)
         image_out = image_in
 
         if self.lightness_only:
@@ -349,10 +299,7 @@ class ImageDilateOrErodeInvocation(BaseInvocation, WithMetadata):
             image_out = image_out.convert("RGB")
             image_out = image_out.convert("LAB")
             l_channel = self.expand_or_contract(image_out.getchannel("L"))
-            image_out = Image.merge(
-                "LAB",
-                (l_channel, image_out.getchannel("A"), image_out.getchannel("B"))
-            )
+            image_out = Image.merge("LAB", (l_channel, image_out.getchannel("A"), image_out.getchannel("B")))
             if (image_mode == "L") or (image_mode == "P"):
                 image_out = image_out.convert("RGB")
             image_out = image_out.convert(image_mode)
@@ -363,19 +310,6 @@ class ImageDilateOrErodeInvocation(BaseInvocation, WithMetadata):
         else:
             image_out = self.expand_or_contract(image_out)
 
-        image_dto = context.services.images.create(
-            image=image_out,
-            image_origin=ResourceOrigin.INTERNAL,
-            image_category=ImageCategory.GENERAL,
-            node_id=self.id,
-            session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate,
-            metadata=self.metadata,
-            workflow=context.workflow,
-        )
-        return ImageOutput(
-            image=ImageField(
-                image_name=image_dto.image_name),
-            width=image_dto.width,
-            height=image_dto.height
-        )
+        image_dto = context.images.save(image_out)
+
+        return ImageOutput.build(image_dto)
