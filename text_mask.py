@@ -3,14 +3,15 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 if not hasattr(Image, 'Resampling'):
     Image.Resampling = Image  # (Compatibilty for Pillow earlier than v9)
 
-from invokeai.app.invocations.baseinvocation import (
+from invokeai.invocation_api import (
     BaseInvocation,
     InputField,
     InvocationContext,
     WithMetadata,
     invocation,
+    ImageField,
+    ImageOutput,
 )
-from invokeai.app.invocations.primitives import ImageField, ImageOutput
 from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
 
 
@@ -51,15 +52,8 @@ class TextMaskInvocation(BaseInvocation, WithMetadata):
             )
         if self.invert:
             image_out = ImageOps.invert(image_out.convert('RGB'))
-        image_dto = context.services.images.create(
+        image_dto = context.images.save(
             image=image_out,
-            image_origin=ResourceOrigin.INTERNAL,
-            image_category=ImageCategory.GENERAL,
-            node_id=self.id,
-            session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate,
-            metadata=self.metadata,
-            workflow=context.workflow,
         )
         return ImageOutput(image=ImageField(image_name=image_dto.image_name),
                            width=image_dto.width,

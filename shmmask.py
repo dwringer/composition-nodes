@@ -6,7 +6,7 @@ import PIL.Image
 import torch
 from torchvision.transforms.functional import to_pil_image as pil_image_from_tensor
 
-from invokeai.app.invocations.baseinvocation import (
+from invokeai.invocation_api import (
     BaseInvocation,
     BaseInvocationOutput,
     InputField,
@@ -15,8 +15,6 @@ from invokeai.app.invocations.baseinvocation import (
     WithMetadata,
     invocation,
     invocation_output,
-)
-from invokeai.app.invocations.primitives import (
     ImageField,
     ImageOutput,
 )
@@ -53,7 +51,7 @@ class EquivalentAchromaticLightnessInvocation(BaseInvocation, WithMetadata):
     # k 0.1644	0.0603	0.1307	0.0060
 
     def invoke(self, context: InvocationContext) -> ImageOutput:
-        image_in = context.services.images.get_pil_image(self.image.image_name)
+        image_in = context.images.get_pil(self.image.image_name)
 
         if image_in.mode == "L":
             image_in = image_in.convert("RGB")
@@ -95,15 +93,8 @@ class EquivalentAchromaticLightnessInvocation(BaseInvocation, WithMetadata):
 
         image_out = pil_image_from_tensor(image_tensor)
 
-        image_dto = context.services.images.create(
+        image_dto = context.images.save(
             image=image_out,
-            image_origin=ResourceOrigin.INTERNAL,
-            image_category=ImageCategory.GENERAL,
-            node_id=self.id,
-            session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate,
-            metadata=self.metadata,
-            workflow=context.workflow,
         )
         return ImageOutput(
             image=ImageField(image_name=image_dto.image_name),
@@ -272,7 +263,7 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation, WithMetadata):
 
 
     def invoke(self, context: InvocationContext) -> ShadowsHighlightsMidtonesMasksOutput:
-        image_in = context.services.images.get_pil_image(self.image.image_name)
+        image_in = context.images.get_pil(self.image.image_name)
         if image_in.mode != "L":
             image_in = image_in.convert("L")
         image_tensor = image_resized_to_grid_as_tensor(image_in, normalize=False, multiple_of=1)
@@ -284,15 +275,8 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation, WithMetadata):
             h_image_out = h_image_out.filter(
                 PIL.ImageFilter.GaussianBlur(radius=self.mask_blur)
             )
-        h_image_dto = context.services.images.create(
+        h_image_dto = context.images.save(
             image=h_image_out,
-            image_origin=ResourceOrigin.INTERNAL,
-            image_category=ImageCategory.GENERAL,
-            node_id=self.id,
-            session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate,
-            metadata=self.metadata,
-            workflow=context.workflow,
         )
         m_image_out = pil_image_from_tensor(self.get_midtones_mask(image_tensor), mode="L")
         if self.mask_expand_or_contract != 0:
@@ -302,15 +286,8 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation, WithMetadata):
             m_image_out = m_image_out.filter(
                 PIL.ImageFilter.GaussianBlur(radius=self.mask_blur)
             )
-        m_image_dto = context.services.images.create(
+        m_image_dto = context.images.save(
             image=m_image_out,
-            image_origin=ResourceOrigin.INTERNAL,
-            image_category=ImageCategory.GENERAL,
-            node_id=self.id,
-            session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate,
-            metadata=self.metadata,
-            workflow=context.workflow,
         )
         s_image_out = pil_image_from_tensor(self.get_shadows_mask(image_tensor), mode="L")
         if self.mask_expand_or_contract != 0:
@@ -319,15 +296,8 @@ class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation, WithMetadata):
             s_image_out = s_image_out.filter(
                 PIL.ImageFilter.GaussianBlur(radius=self.mask_blur)
             )
-        s_image_dto = context.services.images.create(
+        s_image_dto = context.images.save(
             image=s_image_out,
-            image_origin=ResourceOrigin.INTERNAL,
-            image_category=ImageCategory.GENERAL,
-            node_id=self.id,
-            session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate,
-            metadata=self.metadata,
-            workflow=context.workflow,
         )
         return ShadowsHighlightsMidtonesMasksOutput(
             highlights_mask=ImageField(image_name=h_image_dto.image_name),

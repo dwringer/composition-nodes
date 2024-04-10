@@ -1,14 +1,15 @@
 
 from PIL import ImageEnhance, ImageOps
 
-from invokeai.app.invocations.baseinvocation import (
+from invokeai.invocation_api import (
     BaseInvocation,
     InputField,
     InvocationContext,
     WithMetadata,
     invocation,
+    ImageField,
+    ImageOutput,
 )
-from invokeai.app.invocations.primitives import ImageField, ImageOutput
 from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
 
 
@@ -29,7 +30,7 @@ class ImageEnhanceInvocation(BaseInvocation, WithMetadata):
     sharpness:  float = InputField(default=1.0, description="Sharpness enhancement factor")
 
     def invoke(self, context: InvocationContext) -> ImageOutput:
-        image_out = context.services.images.get_pil_image(self.image.image_name)
+        image_out = context.images.get_pil(self.image.image_name)
         if self.invert:
             if image_out.mode not in ("L", "RGB"):
                 image_out = image_out.convert('RGB')
@@ -46,15 +47,8 @@ class ImageEnhanceInvocation(BaseInvocation, WithMetadata):
         if self.sharpness != 1.0:
             sharpness_enhancer = ImageEnhance.Sharpness(image_out)
             image_out = sharpness_enhancer.enhance(self.sharpness)
-        image_dto = context.services.images.create(
+        image_dto = context.images.save(
             image=image_out,
-            image_origin=ResourceOrigin.INTERNAL,
-            image_category=ImageCategory.GENERAL,
-            node_id=self.id,
-            session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate,
-            metadata=self.metadata,
-            workflow=context.workflow,
         )
         return ImageOutput(image=ImageField(image_name=image_dto.image_name),
                            width=image_dto.width,

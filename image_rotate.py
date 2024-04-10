@@ -5,14 +5,15 @@ import cv2
 import numpy
 import PIL.Image
 
-from invokeai.app.invocations.baseinvocation import (
+from invokeai.invocation_api import (
     BaseInvocation,
     InputField,
     InvocationContext,
     WithMetadata,
     invocation,
+    ImageField,
+    ImageOutput,
 )
-from invokeai.app.invocations.primitives import ImageField, ImageOutput
 from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
 from invokeai.backend.stable_diffusion.diffusers_pipeline import (
     image_resized_to_grid_as_tensor,
@@ -51,7 +52,7 @@ class ImageRotateInvocation(BaseInvocation, WithMetadata):
     )
 
     def invoke(self, context: InvocationContext) -> ImageOutput:
-        image_in = context.services.images.get_pil_image(self.image.image_name)
+        image_in = context.images.get_pil(self.image.image_name)
 
         # TODO: Preserve mode, alpha
         image_in = image_in.convert('RGB')
@@ -109,15 +110,8 @@ class ImageRotateInvocation(BaseInvocation, WithMetadata):
 
         image_out = PIL.Image.fromarray(rgb_nparray, mode="RGB")
 
-        image_dto = context.services.images.create(
+        image_dto = context.images.save(
             image=image_out,
-            image_origin=ResourceOrigin.INTERNAL,
-            image_category=ImageCategory.GENERAL,
-            node_id=self.id,
-            session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate,
-            metadata=self.metadata,
-            workflow=context.workflow,
         )
 
         return ImageOutput(

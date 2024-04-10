@@ -7,14 +7,14 @@ from PIL import Image, ImageFilter
 from torchvision.transforms.functional import to_pil_image as pil_image_from_tensor
 from transformers import CLIPSegForImageSegmentation, CLIPSegProcessor
 
-from invokeai.app.invocations.baseinvocation import (
+from invokeai.invocation_api import (
     BaseInvocation,
     InputField,
     InvocationContext,
     WithMetadata,
     invocation,
+    ImageField, ImageOutput
 )
-from invokeai.app.invocations.primitives import ImageField, ImageOutput
 from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
 from invokeai.backend.stable_diffusion.diffusers_pipeline import image_resized_to_grid_as_tensor
 
@@ -85,7 +85,7 @@ class TextToMaskClipsegAdvancedInvocation(BaseInvocation, WithMetadata):
         return img_tensor
 
     def invoke(self, context: InvocationContext) -> ImageOutput:
-        image_in = context.services.images.get_pil_image(self.image.image_name)
+        image_in = context.images.get_pil(self.image.image_name)
         image_size = image_in.size
         image_out = None
 
@@ -155,16 +155,7 @@ class TextToMaskClipsegAdvancedInvocation(BaseInvocation, WithMetadata):
         image_out = self.get_threshold_mask(image_out)
         image_out = pil_image_from_tensor(image_out)
 
-        image_dto = context.services.images.create(
-            image=image_out,
-            image_origin=ResourceOrigin.INTERNAL,
-            image_category=ImageCategory.GENERAL,
-            node_id=self.id,
-            session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate,
-            workflow=context.workflow,
-            metadata=self.metadata,
-        )
+        image_dto = context.images.save(image=image_out)
         return ImageOutput(
             image=ImageField(image_name=image_dto.image_name),
             width=image_dto.width,
@@ -232,7 +223,7 @@ class ImageValueThresholdsInvocation(BaseInvocation, WithMetadata):
         return img_tensor
 
     def invoke(self, context: InvocationContext) -> ImageOutput:
-        image_in = context.services.images.get_pil_image(self.image.image_name)
+        image_in = context.images.get_pil(self.image.image_name)
 
         if self.lightness_only:
             image_mode = image_in.mode
@@ -270,15 +261,8 @@ class ImageValueThresholdsInvocation(BaseInvocation, WithMetadata):
             image_out = self.get_threshold_mask(image_out)
             image_out = pil_image_from_tensor(image_out)
 
-        image_dto = context.services.images.create(
+        image_dto = context.images.save(
             image=image_out,
-            image_origin=ResourceOrigin.INTERNAL,
-            image_category=ImageCategory.GENERAL,
-            node_id=self.id,
-            session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate,
-            workflow=context.workflow,
-            metadata=self.metadata,
         )
         return ImageOutput(
             image=ImageField(image_name=image_dto.image_name),
@@ -340,7 +324,7 @@ class ImageDilateOrErodeInvocation(BaseInvocation, WithMetadata):
         return Image.fromarray(image_out, mode=image_in.mode)
 
     def invoke(self, context: InvocationContext) -> ImageOutput:
-        image_in = context.services.images.get_pil_image(self.image.image_name)
+        image_in = context.images.get_pil(self.image.image_name)
         image_out = image_in
 
         if self.lightness_only:
@@ -373,15 +357,8 @@ class ImageDilateOrErodeInvocation(BaseInvocation, WithMetadata):
         else:
             image_out = self.expand_or_contract(image_out)
 
-        image_dto = context.services.images.create(
+        image_dto = context.images.save(
             image=image_out,
-            image_origin=ResourceOrigin.INTERNAL,
-            image_category=ImageCategory.GENERAL,
-            node_id=self.id,
-            session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate,
-            metadata=self.metadata,
-            workflow=context.workflow,
         )
         return ImageOutput(
             image=ImageField(

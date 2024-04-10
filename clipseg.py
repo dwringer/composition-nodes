@@ -5,14 +5,12 @@ from PIL import Image, ImageFilter
 from torchvision.transforms.functional import to_pil_image as pil_image_from_tensor
 from transformers import CLIPSegForImageSegmentation, CLIPSegProcessor
 
-from invokeai.app.invocations.baseinvocation import (
+from invokeai.invocation_api import (
     BaseInvocation,
     InputField,
     InvocationContext,
     WithMetadata,
     invocation,
-)
-from invokeai.app.invocations.primitives import (
     ImageField,
     ImageOutput,
 )
@@ -111,7 +109,7 @@ class TextToMaskClipsegInvocation(BaseInvocation, WithMetadata):
 
 
     def invoke(self, context: InvocationContext) -> ImageOutput:
-        image_in = context.services.images.get_pil_image(self.image.image_name)
+        image_in = context.images.get_pil(self.image.image_name)
         image_size = image_in.size
         image_out = None
 
@@ -150,15 +148,8 @@ class TextToMaskClipsegInvocation(BaseInvocation, WithMetadata):
         if 0 < self.mask_blur:
             image_out = image_out.filter(ImageFilter.GaussianBlur(radius=self.mask_blur))
 
-        image_dto = context.services.images.create(
+        image_dto = context.images.save(
             image=image_out,
-            image_origin=ResourceOrigin.INTERNAL,
-            image_category=ImageCategory.GENERAL,
-            node_id=self.id,
-            session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate,
-            metadata=self.metadata,
-            workflow=context.workflow,
         )
         return ImageOutput(
             image=ImageField(image_name=image_dto.image_name),

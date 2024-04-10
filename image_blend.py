@@ -16,14 +16,12 @@ import PIL.Image, PIL.ImageOps, PIL.ImageCms
 import torch
 from torchvision.transforms.functional import to_pil_image as pil_image_from_tensor
 
-from invokeai.app.invocations.baseinvocation import (
+from invokeai.invocation_api import (
     BaseInvocation,
     InputField,
     InvocationContext,
     invocation,
     WithMetadata,
-)
-from invokeai.app.invocations.primitives import (
     ImageField,
     ImageOutput,
 )
@@ -848,8 +846,8 @@ class ImageBlendInvocation(BaseInvocation, WithMetadata):
     def invoke(self, context: InvocationContext) -> ImageOutput:
         """Main execution of the ImageBlendInvocation node"""
 
-        image_upper = context.services.images.get_pil_image(self.layer_upper.image_name)
-        image_base = context.services.images.get_pil_image(self.layer_base.image_name)
+        image_upper = context.images.get_pil(self.layer_upper.image_name)
+        image_base = context.images.get_pil(self.layer_base.image_name)
 
         # Keep the modes for restoration after processing:
         image_mode_upper = image_upper.mode
@@ -879,7 +877,7 @@ class ImageBlendInvocation(BaseInvocation, WithMetadata):
 
         image_mask = None
         if not (self.mask is None):
-            image_mask = context.services.images.get_pil_image(self.mask.image_name)
+            image_mask = context.images.get_pil(self.mask.image_name)
         color_space = self.color_space.split()[0]
         
         image_upper = self.scale_and_pad_or_crop_to_base(
@@ -974,15 +972,8 @@ class ImageBlendInvocation(BaseInvocation, WithMetadata):
         else:
             image_out = image_out.convert(image_mode_base)
         
-        image_dto = context.services.images.create(
+        image_dto = context.images.save(
             image=image_out,
-            image_origin=ResourceOrigin.INTERNAL,
-            image_category=ImageCategory.GENERAL,
-            node_id=self.id,
-            session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate,
-            metadata=self.metadata,
-            workflow=context.workflow,
         )
         return ImageOutput(
             image=ImageField(image_name=image_dto.image_name),
@@ -1018,7 +1009,7 @@ class AdjustImageHuePlusInvocation(BaseInvocation, WithMetadata):
     )
 
     def invoke(self, context: InvocationContext) -> ImageOutput:
-        image_in = context.services.images.get_pil_image(self.image.image_name)
+        image_in = context.images.get_pil(self.image.image_name)
         image_out = None
         space = self.space.split()[0].lower().strip('*')
 
@@ -1216,15 +1207,8 @@ class AdjustImageHuePlusInvocation(BaseInvocation, WithMetadata):
                 tuple([image_out.getchannel(c) for c in image_mode] + [alpha_channel])
             )
 
-        image_dto = context.services.images.create(
+        image_dto = context.images.save(
             image=image_out,
-            image_origin=ResourceOrigin.INTERNAL,
-            image_category=ImageCategory.GENERAL,
-            node_id=self.id,
-            session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate,
-            metadata=self.metadata,
-            workflow=context.workflow,
         )
         return ImageOutput(
             image=ImageField(image_name=image_dto.image_name),

@@ -10,15 +10,17 @@ import PIL.Image
 import scipy.stats
 import torch
 
-from invokeai.app.invocations.baseinvocation import (
+from invokeai.invocation_api import (
     BaseInvocation,
     InputField,
     InvocationContext,
     WithMetadata,
     invocation,
+    # NoiseOutput,
+    ImageField,
+    ImageOutput,
 )
-from invokeai.app.invocations.noise import NoiseOutput, build_noise_output
-from invokeai.app.invocations.primitives import ImageField, ImageOutput
+from invokeai.app.invocations.noise import NoiseOutput
 from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
 from invokeai.app.util.misc import SEED_MAX, get_random_seed
 
@@ -186,15 +188,8 @@ class NoiseImage2DInvocation(BaseInvocation, WithMetadata):
                 seed=self.seed,
             )
 
-        image_dto = context.services.images.create(
+        image_dto = context.images.save(
             image=image,
-            image_origin=ResourceOrigin.INTERNAL,
-            image_category=ImageCategory.GENERAL,
-            node_id=self.id,
-            session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate,
-            metadata=self.metadata,
-            workflow=context.workflow,
         )
 
         return ImageOutput(
@@ -290,7 +285,7 @@ class NoiseSpectralInvocation(BaseInvocation):
 
         name = f"{context.graph_execution_state_id}__{self.id}"
         context.services.latents.save(name, latents)
-        return build_noise_output(latents_name=name, latents=latents, seed=self.seed)
+        return NoiseOutput.build(latents_name=name, latents=latents, seed=self.seed)
 
 
 @invocation(
@@ -306,19 +301,12 @@ class FlattenHistogramMono(BaseInvocation, WithMetadata):
     image: ImageField = InputField(description="Single-channel image for which to flatten the histogram")
 
     def invoke(self, context: InvocationContext) -> ImageOutput:
-        image = context.services.images.get_pil_image(self.image.image_name)
+        image = context.images.get_pil(self.image.image_name)
         if not (image.mode == "L"):
             image = image.convert("L")
         image = PIL.Image.fromarray(flatten_histogram(numpy.array(image)), mode="L")
-        image_dto = context.services.images.create(
+        image_dto = context.images.save(
             image=image,
-            image_origin=ResourceOrigin.INTERNAL,
-            image_category=ImageCategory.GENERAL,
-            node_id=self.id,
-            session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate,
-            metadata=self.metadata,
-            workflow=context.workflow,
         )
 
         return ImageOutput(

@@ -3,14 +3,15 @@ from functools import reduce
 
 from PIL import Image, ImageChops, ImageColor, ImageDraw, ImageOps
 
-from invokeai.app.invocations.baseinvocation import (
+from invokeai.invocation_api import (
     BaseInvocation,
     InputField,
     InvocationContext,
     WithMetadata,
     invocation,
+    ImageField,
+    ImageOutput,
 )
-from invokeai.app.invocations.primitives import ImageField, ImageOutput
 from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
 
 
@@ -41,8 +42,8 @@ class ImageCompositorInvocation(BaseInvocation, WithMetadata):
     y_offset:   int = InputField(default=0, description="y-offset for the subject")
 
     def invoke(self, context: InvocationContext) -> ImageOutput:
-        image_background = context.services.images.get_pil_image(self.image_background.image_name).convert(mode="RGBA")
-        image_subject    = context.services.images.get_pil_image(self.image_subject.image_name).convert(mode="RGBA")
+        image_background = context.images.get_pil(self.image_background.image_name).convert(mode="RGBA")
+        image_subject    = context.images.get_pil(self.image_subject.image_name).convert(mode="RGBA")
         image_subject.width / image_subject.height
 
         # Handle backdrop removal:
@@ -88,15 +89,8 @@ class ImageCompositorInvocation(BaseInvocation, WithMetadata):
 
         new_image = Image.alpha_composite(image_background, image_subject)
         new_image.convert(mode="RGB")
-        image_dto = context.services.images.create(
+        image_dto = context.images.save(
             image=new_image,
-            image_origin=ResourceOrigin.INTERNAL,
-            image_category=ImageCategory.GENERAL,
-            node_id=self.id,
-            session_id=context.graph_execution_state_id,
-            is_intermediate=self.is_intermediate,
-            metadata=self.metadata,
-            workflow=context.workflow,
         )
 
         return ImageOutput(

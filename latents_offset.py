@@ -1,17 +1,14 @@
 import torch
 
-from invokeai.app.invocations.baseinvocation import (
+from invokeai.invocation_api import (
     BaseInvocation,
     FieldDescriptions,
     Input,
     InputField,
     InvocationContext,
     invocation,
-)
-from invokeai.app.invocations.primitives import (
     LatentsField,
     LatentsOutput,
-    build_latents_output,
 )
 from invokeai.backend.util.devices import choose_torch_device
 
@@ -46,4 +43,4 @@ class OffsetLatentsInvocation(BaseInvocation):
         torch.cuda.empty_cache()
         name = f"{context.graph_execution_state_id}__{self.id}"
         context.services.latents.save(name, latents_out)
-        return build_latents_output(latents_name=name, latents=latents_out, seed=self.latents.seed)
+        return LatentsOutput.build(latents_name=name, latents=latents_out, seed=self.latents.seed)
