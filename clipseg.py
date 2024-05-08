@@ -5,19 +5,16 @@ from PIL import Image, ImageFilter
 from torchvision.transforms.functional import to_pil_image as pil_image_from_tensor
 from transformers import CLIPSegForImageSegmentation, CLIPSegProcessor
 
-from invokeai.app.invocations.baseinvocation import (
+from invokeai.backend.stable_diffusion.diffusers_pipeline import image_resized_to_grid_as_tensor
+from invokeai.invocation_api import (
     BaseInvocation,
-    InvocationContext,
-    invocation,
-)
-from invokeai.app.invocations.fields import InputField, WithBoard, WithMetadata
-from invokeai.app.invocations.primitives import (
     ImageField,
     ImageOutput,
-)
-from invokeai.app.services.image_records.image_records_common import ImageCategory, ResourceOrigin
-from invokeai.backend.stable_diffusion.diffusers_pipeline import (
-    image_resized_to_grid_as_tensor,
+    InputField,
+    InvocationContext,
+    WithBoard,
+    WithMetadata,
+    invocation,
 )
 
 

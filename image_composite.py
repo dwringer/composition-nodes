@@ -3,13 +3,16 @@ from functools import reduce
 
 from PIL import Image, ImageChops, ImageColor, ImageDraw, ImageOps
 
-from invokeai.app.invocations.baseinvocation import (
+from invokeai.invocation_api import (
     BaseInvocation,
+    ImageField,
+    ImageOutput,
+    InputField,
     InvocationContext,
+    WithBoard,
+    WithMetadata,
     invocation,
 )
-from invokeai.app.invocations.fields import InputField, WithBoard, WithMetadata
-from invokeai.app.invocations.primitives import ImageField, ImageOutput
 
 
 @invocation(

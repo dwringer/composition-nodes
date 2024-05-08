@@ -10,15 +10,19 @@ import PIL.Image
 import scipy.stats
 import torch
 
-from invokeai.app.invocations.baseinvocation import (
+from invokeai.app.invocations.noise import NoiseOutput
+from invokeai.invocation_api import (
+    SEED_MAX,
     BaseInvocation,
+    ImageField,
+    ImageOutput,
+    InputField,
     InvocationContext,
+    WithBoard,
+    WithMetadata,
+    get_random_seed,
     invocation,
 )
-from invokeai.app.invocations.fields import ImageField, InputField, WithBoard, WithMetadata
-from invokeai.app.invocations.noise import NoiseOutput
-from invokeai.app.invocations.primitives import ImageOutput
-from invokeai.app.util.misc import SEED_MAX, get_random_seed
 
 
 def flatten_histogram(image_array, seed=None):

@@ -3,22 +3,19 @@ import torch
 import torchvision.transforms as T
 from torchvision.transforms.functional import resize as tv_resize
 
-from invokeai.app.invocations.baseinvocation import (
+from invokeai.backend.stable_diffusion.diffusers_pipeline import image_resized_to_grid_as_tensor
+from invokeai.invocation_api import (
     BaseInvocation,
-    Input,
-    InvocationContext,
-    invocation,
-)
-from invokeai.app.invocations.fields import FieldDescriptions, InputField
-from invokeai.app.invocations.primitives import (
+    FieldDescriptions,
     ImageField,
+    Input,
+    InputField,
+    InvocationContext,
     LatentsField,
     LatentsOutput,
+    choose_torch_device,
+    invocation,
 )
-from invokeai.backend.stable_diffusion.diffusers_pipeline import (
-    image_resized_to_grid_as_tensor,
-)
-from invokeai.backend.util.devices import choose_torch_device
 
 
 @invocation(

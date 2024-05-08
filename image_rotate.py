@@ -5,15 +5,16 @@ import cv2
 import numpy
 import PIL.Image
 
-from invokeai.app.invocations.baseinvocation import (
+from invokeai.backend.stable_diffusion.diffusers_pipeline import image_resized_to_grid_as_tensor
+from invokeai.invocation_api import (
     BaseInvocation,
+    ImageField,
+    ImageOutput,
+    InputField,
     InvocationContext,
+    WithBoard,
+    WithMetadata,
     invocation,
-)
-from invokeai.app.invocations.fields import InputField, WithBoard, WithMetadata
-from invokeai.app.invocations.primitives import ImageField, ImageOutput
-from invokeai.backend.stable_diffusion.diffusers_pipeline import (
-    image_resized_to_grid_as_tensor,
 )
 
 

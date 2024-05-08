@@ -6,20 +6,19 @@ import PIL.Image
 import torch
 from torchvision.transforms.functional import to_pil_image as pil_image_from_tensor
 
-from invokeai.app.invocations.baseinvocation import (
+from invokeai.backend.stable_diffusion.diffusers_pipeline import image_resized_to_grid_as_tensor
+from invokeai.invocation_api import (
     BaseInvocation,
     BaseInvocationOutput,
-    InvocationContext,
-    invocation,
-    invocation_output,
-)
-from invokeai.app.invocations.fields import InputField, OutputField, WithBoard, WithMetadata
-from invokeai.app.invocations.primitives import (
     ImageField,
     ImageOutput,
-)
-from invokeai.backend.stable_diffusion.diffusers_pipeline import (
-    image_resized_to_grid_as_tensor,
+    InputField,
+    InvocationContext,
+    OutputField,
+    WithBoard,
+    WithMetadata,
+    invocation,
+    invocation_output,
 )
 
 

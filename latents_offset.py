@@ -1,17 +1,16 @@
 import torch
 
-from invokeai.app.invocations.baseinvocation import (
+from invokeai.invocation_api import (
     BaseInvocation,
+    FieldDescriptions,
     Input,
+    InputField,
     InvocationContext,
-    invocation,
-)
-from invokeai.app.invocations.fields import FieldDescriptions, InputField
-from invokeai.app.invocations.primitives import (
     LatentsField,
     LatentsOutput,
+    choose_torch_device,
+    invocation,
 )
-from invokeai.backend.util.devices import choose_torch_device
 
 
 @invocation(

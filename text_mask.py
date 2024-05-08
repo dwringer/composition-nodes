@@ -5,12 +5,12 @@ from invokeai.app.invocations.fields import InputField, WithBoard, WithMetadata
 if not hasattr(Image, "Resampling"):
     Image.Resampling = Image  # (Compatibilty for Pillow earlier than v9)
 
-from invokeai.app.invocations.baseinvocation import (
+from invokeai.invocation_api import (
     BaseInvocation,
+    ImageOutput,
     InvocationContext,
     invocation,
 )
-from invokeai.app.invocations.primitives import ImageOutput
 
 
 @invocation("text_mask", title="Text Mask", tags=["image", "text", "mask"], category="mask", version="1.2.0")

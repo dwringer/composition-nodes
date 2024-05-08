@@ -6,15 +6,19 @@ from typing import Literal, Optional
 import numpy
 from PIL import Image, ImageCms
 
-from invokeai.app.invocations.baseinvocation import (
+from invokeai.invocation_api import (
     BaseInvocation,
     BaseInvocationOutput,
+    ImageField,
+    ImageOutput,
+    InputField,
     InvocationContext,
+    OutputField,
+    WithBoard,
+    WithMetadata,
     invocation,
     invocation_output,
 )
-from invokeai.app.invocations.fields import InputField, OutputField, WithBoard, WithMetadata
-from invokeai.app.invocations.primitives import ImageField, ImageOutput
 
 COLOR_PROFILES_DIR = "nodes/color-profiles/"
 
