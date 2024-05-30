@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 import torch
 import torchvision.transforms as T
@@ -36,7 +38,7 @@ class MaskedBlendLatentsInvocation(BaseInvocation):
         description=FieldDescriptions.latents,
         input=Input.Connection,
     )
-    mask: ImageField = InputField(description="Mask for blending in latents B")
+    mask: Optional[ImageField] = InputField(default=None, description="Mask for blending in latents B")
     alpha: float = InputField(default=0.5, description=FieldDescriptions.blend_alpha)
 
     def prep_mask_tensor(self, mask_image):
@@ -59,9 +61,11 @@ class MaskedBlendLatentsInvocation(BaseInvocation):
     def invoke(self, context: InvocationContext) -> LatentsOutput:
         latents_a = context.tensors.load(self.latents_a.latents_name)
         latents_b = context.tensors.load(self.latents_b.latents_name)
-        mask_tensor = self.prep_mask_tensor(context.images.get_pil(self.mask.image_name))
-
-        mask_tensor = tv_resize(mask_tensor, latents_a.shape[-2:], T.InterpolationMode.BILINEAR, antialias=False)
+        if self.mask is None:
+            mask_tensor = torch.zeros(latents_a.shape[-2:])
+        else:
+            mask_tensor = self.prep_mask_tensor(context.images.get_pil(self.mask.image_name))
+            mask_tensor = tv_resize(mask_tensor, latents_a.shape[-2:], T.InterpolationMode.BILINEAR, antialias=False)
 
         latents_b = self.replace_tensor_from_masked_tensor(latents_b, latents_a, mask_tensor)
 
