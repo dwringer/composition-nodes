@@ -10,8 +10,6 @@ from invokeai.invocation_api import (
     ImageOutput,
     InvocationContext,
     invocation,
-    ImageField,
-    ImageOutput,
 )
 
 
