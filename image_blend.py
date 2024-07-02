@@ -1192,6 +1192,7 @@ class AdjustImageHuePlusInvocation(BaseInvocation, WithMetadata, WithBoard):
 
         return ImageOutput.build(image_dto)
 
+
 def equivalent_achromatic_lightness(lch_tensor):
     """Calculate Equivalent Achromatic Lightness accounting for Helmholtz-Kohlrausch effect"""
     # As described by High, Green, and Nussbaum (2023): https://doi.org/10.1002/col.22839
