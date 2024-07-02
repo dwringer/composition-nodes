@@ -203,5 +203,3 @@ class ImageSearchToMaskClipsegInvocation(BaseInvocation, ClipsegBase, WithMetada
         image_dto = context.images.save(image_out)
 
         return ImageOutput.build(image_dto)
-    
-    

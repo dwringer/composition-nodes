@@ -22,6 +22,7 @@ from invokeai.invocation_api import (
     WithMetadata,
     get_random_seed,
     invocation,
+    # NoiseOutput,
 )
 
 
