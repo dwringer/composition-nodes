@@ -6,11 +6,11 @@ from invokeai.invocation_api import (
     Input,
     InputField,
     InvocationContext,
-    invocation,
     LatentsField,
     LatentsOutput,
+    choose_torch_device,
+    invocation,
 )
-from invokeai.backend.util.devices import choose_torch_device
 
 
 @invocation(
@@ -18,10 +18,11 @@ from invokeai.backend.util.devices import choose_torch_device
     title="Offset Latents",
     tags=["latents", "offset"],
     category="latents",
-    version="1.1.0",
+    version="1.2.0",
 )
 class OffsetLatentsInvocation(BaseInvocation):
     """Offsets a latents tensor by a given percentage of height/width."""
+
     latents: LatentsField = InputField(
         description=FieldDescriptions.latents,
         input=Input.Connection,
@@ -30,17 +31,13 @@ class OffsetLatentsInvocation(BaseInvocation):
     y_offset: float = InputField(default=0.5, description="Approx percentage to offset (V)")
 
     def invoke(self, context: InvocationContext) -> LatentsOutput:
-        latents = context.services.latents.get(self.latents.latents_name)
+        latents = context.tensors.load(self.latents.latents_name)
         device = choose_torch_device()
         x_offset = int(self.x_offset * latents.size(dim=2))
         y_offset = int(self.y_offset * latents.size(dim=3))
-        latents_out = torch.roll(
-            latents.to(device),
-            shifts=(x_offset, y_offset),
-            dims=(2, 3)
-        )
+        latents_out = torch.roll(latents.to(device), shifts=(x_offset, y_offset), dims=(2, 3))
         latents_out = latents_out.to("cpu")
         torch.cuda.empty_cache()
-        name = f"{context.graph_execution_state_id}__{self.id}"
-        context.services.latents.save(name, latents_out)
-        return LatentsOutput.build(latents_name=name, latents=latents_out, seed=self.latents.seed)
+        name = context.tensors.save(tensor=latents_out)
+
+        return LatentsOutput.build(latents_name=name, latents=latents_out)
