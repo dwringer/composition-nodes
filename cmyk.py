@@ -18,8 +18,6 @@ from invokeai.invocation_api import (
     WithMetadata,
     invocation,
     invocation_output,
-    ImageField,
-    ImageOutput,
 )
 
 COLOR_PROFILES_DIR = "nodes/color-profiles/"
