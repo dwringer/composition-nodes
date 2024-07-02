@@ -9,8 +9,6 @@ from invokeai.invocation_api import (
     WithBoard,
     WithMetadata,
     invocation,
-    ImageField,
-    ImageOutput,
 )
 
 
