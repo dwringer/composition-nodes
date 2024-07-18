@@ -5,7 +5,7 @@
 # TODO: Blend multiple layers all crammed into a tensor(?) or list
 
 # Copyright (c) 2023 Darren Ringer <dwringer@gmail.com>
-# Parts based on Oklab: Copyright (c) 2021 Bjï¿½rn Ottosson <https://bottosson.github.io/>
+# Parts based on Oklab: Copyright (c) 2021 Björn Ottosson <https://bottosson.github.io/>
 # HSL code based on CPython: Copyright (c) 2001-2023 Python Software Foundation; All Rights Reserved
 import os.path
 from io import BytesIO

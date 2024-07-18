@@ -11,7 +11,6 @@ from .image_rotate import *
 from .latent_masked_blend import *
 from .latents_offset import *
 from .noise_s import *
+from .palette import *
 from .shmmask import *
 from .text_mask import *
-
-
