@@ -28,10 +28,10 @@ def tensor_from_pil_image(img, normalize=False):
 
 @invocation(
     'latent_som',
-    title="Latent Quantize (SOM)",
-    tags=["latents", "quantize", "som"],
+    title="Latent Quantize (Kohonen map)",
+    tags=["latents", "quantize", "som", "kohonen"],
     category="latents",
-    version="0.0.1"
+    version="0.0.2"
 )
 class LatentSOMInvocation(BaseInvocation):
     """Use a self-organizing map to quantize the values of a latent tensor"""
@@ -163,7 +163,7 @@ class ImageSOMOutput(BaseInvocationOutput):
     title="Image Quantize (Kohonen map)",
     tags=["image", "color", "quantize", "som", "kohonen", "palette"],
     category="image",
-    version="0.6.2"
+    version="0.6.3"
 )
 class ImageSOMInvocation(BaseInvocation):
     """Use a Kohonen self-organizing map to quantize the pixel values of an image"""
@@ -172,12 +172,21 @@ class ImageSOMInvocation(BaseInvocation):
         default=None,
         description="Use an existing SOM instead of training one (skips all training)"
     )
-    map_width:  int = InputField(default=16,   description="Width (in cells) of the self-organizing map to train")
-    map_height: int = InputField(default=16,   description="Height (in cells) of the self-organizing map to train")
-    steps:  int = InputField(default=128, description="Training step count for the self-organizing map")
-    training_scale: float = InputField(default=0.25, description="Nearest-neighbor scale image size prior to sampling")
-    sample_width: Optional[int] = InputField(default=64, description="Width of randomly selected sample per step")
-    sample_height: Optional[int] = InputField(default=64, description="Height of randomly selected sample per step")
+    map_width:      int   = InputField(default=16, description="Width (in cells) of the self-organizing map to train")
+    map_height:     int   = InputField(default=16, description="Height (in cells) of the self-organizing map to train")
+    steps:          int   = InputField(default=64, description="Training step count for the self-organizing map")
+    training_scale: float = InputField(
+        default=0.25,
+        description="Nearest-neighbor scale image size prior to sampling - size close to sample size is recommended"
+    )
+    sample_width:   int   = InputField(
+        default=64,
+        description="Width of assorted pixel sample per step - for performance, keep this number low"
+    )
+    sample_height:  int   = InputField(
+        default=64,
+        description="Height of assorted pixel sample per step - for performance, keep this number low"
+    )
 
 
     def invoke(self, context: InvocationContext) -> ImageSOMOutput:
