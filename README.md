@@ -67,7 +67,7 @@ Use a self-organizing map to quantize the values of a latent tensor. This is hig
 
 #### Image Quantize (Kohonen map)
 
-Use a Kohonen self-organizing map to quantize the pixel values of an image. It's possible to pass in an existing map, which will be used instead of training a new one. It's also possible to pass in a "swap map", which will be used in place of the standard map's assigned pixel values in quantizing the target image - these values can be correlated either one by one by a linear assignment minimizing the distances\* between each of them, or by swapping their coordinates on the maps themselves, which can be orientedfirst such that their corner distances\* are minimized achieving a closest-fit while attempting to preserve mappings of adjacent colors.
+Use a Kohonen self-organizing map to quantize the pixel values of an image. It's possible to pass in an existing map, which will be used instead of training a new one. It's also possible to pass in a "swap map", which will be used in place of the standard map's assigned pixel values in quantizing the target image - these values can be correlated either one by one by a linear assignment minimizing the distances\* between each of them, or by swapping their coordinates on the maps themselves, which can be oriented first such that their corner distances\* are minimized achieving a closest-fit while attempting to preserve mappings of adjacent colors.
 
 \*Here, "distances" refers to the euclidean distances between (L, a, b) tuples in Oklab color space.
 
@@ -88,9 +88,6 @@ Use a mask to blend part of one latents/noise tensor into another. Can be used t
 Boost or reduce color saturation, contrast, brightness, sharpness, or invert colors of any image at any stage with this simple wrapper for pillow [PIL]'s ImageEnhance module.
 
 Color inversion is toggled with a simple switch, while each of the four enhancer modes are activated by entering a value other than 1 in each corresponding input field. Values less than 1 will reduce the corresponding property, while values greater than 1 will enhance it.
-
-**Example Usage:**
-![enhance image usage graph](https://raw.githubusercontent.com/dwringer/composition-nodes/main/image_enhance_usage.jpg)
 
 #### Equivalent Achromatic Lightness
 
@@ -119,7 +116,3 @@ Dilate or expand a mask (or any image!). This is equivalent to an expand/contrac
 #### Image Value Thresholds
 
 Clip an image to pure black/white beyond specified thresholds.
-
-#### Example usage:
-
-![composition nodes usage graph](https://raw.githubusercontent.com/dwringer/composition-nodes/main/composition_nodes_usage.jpg)
