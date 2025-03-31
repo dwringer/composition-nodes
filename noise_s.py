@@ -10,14 +10,23 @@ import PIL.Image
 import scipy.stats
 import torch
 
+from invokeai.app.invocations.fields import FieldDescriptions
 from invokeai.app.invocations.noise import NoiseOutput
+from invokeai.backend.flux.sampling_utils import (
+    get_schedule,
+    clip_timestep_schedule_fractional,
+)
 from invokeai.invocation_api import (
     SEED_MAX,
     BaseInvocation,
+    FloatOutput,
     ImageField,
     ImageOutput,
+    Input,
     InputField,
     InvocationContext,
+    LatentsField,
+    LatentsOutput,
     WithBoard,
     WithMetadata,
     get_random_seed,
@@ -280,7 +289,7 @@ class NoiseImage2DInvocation(BaseInvocation, WithMetadata, WithBoard):
     title="Noise (Spectral characteristics)",
     tags=["noise"],
     category="noise",
-    version="1.2.0",
+    version="1.3.0",
 )
 class NoiseSpectralInvocation(BaseInvocation):
     """Creates an image of 2D Noise approximating the desired characteristics"""
@@ -290,6 +299,7 @@ class NoiseSpectralInvocation(BaseInvocation):
     )
     width: int = InputField(default=512, description="Desired image width")
     height: int = InputField(default=512, description="Desired image height")
+    flux16: bool = InputField(default=False, description="If false, 4-channel (SD/SDXL); if true, 16-channel (Flux)")
     seed: int = InputField(default=0, ge=0, le=SEED_MAX, description="Seed for noise generation")
     iterations: int = InputField(default=15, description="Noise approx. iterations")
     blur_threshold: float = InputField(
@@ -301,7 +311,8 @@ class NoiseSpectralInvocation(BaseInvocation):
     def invoke(self, context: InvocationContext) -> NoiseOutput:
         latents = None
         w, h = self.width // 8, self.height // 8
-
+        num_channels = 16 if self.flux16 else 4
+        
         def torchify(arr):
             epsilon = numpy.finfo(float).eps
             arr = numpy.where(numpy.equal(arr, 0.0), epsilon, arr)
@@ -313,7 +324,12 @@ class NoiseSpectralInvocation(BaseInvocation):
 
         if self.noise_type == "White":
             latents = (
-                torch.stack([torchify(white_noise_array(w, h, seed=self.seed + i, is_uint8=False)) for i in range(4)])
+                torch.stack([torchify(white_noise_array(
+                    w,
+                    h,
+                    seed=self.seed + i,
+                    is_uint8=False)
+                ) for i in range(num_channels)])
                 .unsqueeze(0)
                 .to("cpu")
             )
@@ -332,7 +348,7 @@ class NoiseSpectralInvocation(BaseInvocation):
                                 is_uint8=False,
                             )
                         )
-                        for i in range(4)
+                        for i in range(num_channels)
                     ]
                 )
                 .unsqueeze(0)
@@ -353,7 +369,7 @@ class NoiseSpectralInvocation(BaseInvocation):
                                 is_uint8=False,
                             )
                         )
-                        for i in range(4)
+                        for i in range(num_channels)
                     ]
                 )
                 .unsqueeze(0)
@@ -375,7 +391,7 @@ class NoiseSpectralInvocation(BaseInvocation):
                                 is_uint8=False,
                             )
                         )
-                        for i in range(4)
+                        for i in range(num_channels)
                     ]
                 )
                 .unsqueeze(0)
@@ -406,3 +422,44 @@ class FlattenHistogramMono(BaseInvocation, WithMetadata, WithBoard):
         image_dto = context.images.save(image)
 
         return ImageOutput.build(image_dto)
+
+                                 
+@invocation(
+    "noise_add_flux",
+    title="Add Noise (Flux)",
+    tags=["latents", "blend", "noise"],
+    category="noise",
+    version="0.0.1",
+)
+class NoiseAddFluxInvocation(BaseInvocation):
+    """Add noise to a flux latents tensor using the appropriate ratio given the denoising schedule timestep."""
+
+    latents_in: LatentsField = InputField(description=FieldDescriptions.latents, input=Input.Connection)
+    noise_in: LatentsField = InputField(description="The noise to be added", input=Input.Connection)
+    num_steps: int = InputField(description="Number of diffusion steps")
+    denoising_start: float = InputField(description="Starting point for denoising (0.0 to 1.0)")
+    is_schnell: bool = InputField(description="Boolean flag indicating if this is a FLUX Schnell model")
+    
+
+    def invoke(self, context: InvocationContext) -> LatentsOutput:
+        latents = context.tensors.load(self.latents_in.latents_name)
+        noise = context.tensors.load(self.noise_in.latents_name)
+
+        latent_w, latent_h = latents[0,0].shape
+        packed_w, packed_h = latent_w // 2, latent_h // 2
+        timesteps = get_schedule(
+            num_steps=self.num_steps,
+            image_seq_len=packed_h * packed_w,
+            shift=not self.is_schnell,
+        )
+
+        timesteps = clip_timestep_schedule_fractional(timesteps, self.denoising_start, 1.0)
+        t_0 = timesteps[0]
+        latents = t_0 * noise + (1.0 - t_0) * latents
+
+        # https://discuss.huggingface.co/t/memory-usage-by-later-pipeline-stages/23699
+        latents = latents.to("cpu")
+        torch.cuda.empty_cache()
+
+        name = context.tensors.save(tensor=latents)
+        return LatentsOutput.build(latents_name=name, latents=latents)

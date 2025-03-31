@@ -1,7 +1,9 @@
-from typing import Optional
+from typing import Literal, Optional
 
+import numpy as np
 import torch
 from PIL import Image
+from scipy.optimize import linear_sum_assignment
 from torchvision.transforms.functional import to_pil_image as pil_image_from_tensor
 
 from invokeai.backend.stable_diffusion.diffusers_pipeline import image_resized_to_grid_as_tensor
@@ -21,6 +23,13 @@ from invokeai.invocation_api import (
     invocation_output,
 )
 
+from invokeai.backend.image_util.composition import (
+    linear_srgb_from_oklab,
+    linear_srgb_from_srgb,
+    oklab_from_linear_srgb,
+    srgb_from_linear_srgb,
+ )
+
 
 def tensor_from_pil_image(img, normalize=False):
     return image_resized_to_grid_as_tensor(img, normalize=normalize, multiple_of=1)
@@ -31,7 +40,7 @@ def tensor_from_pil_image(img, normalize=False):
     title="Latent Quantize (Kohonen map)",
     tags=["latents", "quantize", "som", "kohonen"],
     category="latents",
-    version="0.0.2"
+    version="0.0.3"
 )
 class LatentSOMInvocation(BaseInvocation):
     """Use a self-organizing map to quantize the values of a latent tensor"""
@@ -50,9 +59,10 @@ class LatentSOMInvocation(BaseInvocation):
             latents_in = context.tensors.load(self.reference_in.latents_name)
         else:
             latents_in = context.tensors.load(self.latents_in.latents_name)
-                
 
-        som_tensor = torch.zeros((1, 4, self.height, self.width))
+        num_channels = latents_in.shape[1]
+
+        som_tensor = torch.zeros((1, num_channels, self.height, self.width))
 
         def bmu(latent_pixel):
 
@@ -67,9 +77,9 @@ class LatentSOMInvocation(BaseInvocation):
 
 
         sample_indices = torch.randperm(latents_in.shape[2] * latents_in.shape[3])
-        sample = latents_in.view(1, 4, -1)[:, :, sample_indices]
+        sample = latents_in.view(1, num_channels, -1)[:, :, sample_indices]
 
-        init_sample = sample[:, :, :(self.width * self.height)].view(1, 4, self.height, self.width)
+        init_sample = sample[:, :, :(self.width * self.height)].view(1, num_channels, self.height, self.width)
 
         som_tensor = torch.clone(init_sample)
         row_indices = torch.arange(
@@ -78,13 +88,13 @@ class LatentSOMInvocation(BaseInvocation):
         ).expand(som_tensor.shape[3], -1).transpose(0, 1)
         column_indices = torch.arange(0, som_tensor.shape[3]).expand(som_tensor.shape[2], -1)
         
-        # LATENTS_IN.SHAPE/SIZE() = 1, 4, H, W)
+        # LATENTS_IN.SHAPE/SIZE() = 1, num_channels, H, W)
 
         neighborhood_width_max = som_tensor.shape[2] + som_tensor.shape[3] - 2
         
         for i in range(self.steps):
             sample_indices = torch.randperm(latents_in.shape[2] * latents_in.shape[3])
-            sample = latents_in.view(1, 4, -1)[:, :, sample_indices].view(latents_in.shape)
+            sample = latents_in.view(1, num_channels, -1)[:, :, sample_indices].view(latents_in.shape)
 
             neighborhood_width = neighborhood_width_max - (
                 neighborhood_width_max * float(i) / self.steps
@@ -96,8 +106,8 @@ class LatentSOMInvocation(BaseInvocation):
                         self.height,
                         self.width,
                         1,
-                        4
-                    ).movedim(0, 3).movedim(0, 3)  # h, w, 1, 4 -> 1, 4, h, w
+                        num_channels
+                    ).movedim(0, 3).movedim(0, 3)  # h, w, 1, num_channels -> 1, 4, h, num_channels
                     bmu_row, bmu_column = bmu(latent_pixel)
                     grid_distances = torch.add(
                         torch.abs(torch.sub(row_indices, bmu_row)),
@@ -136,7 +146,7 @@ class LatentSOMInvocation(BaseInvocation):
                     self.height,
                     self.width,
                     1,
-                    4
+                    num_channels
                 ).movedim(0, 3).movedim(0, 3)
                 bmu_i, bmu_j = bmu(latent_pixel)
                 latents_out[:, :, i, j] = som_tensor[:, :, bmu_i, bmu_j]
@@ -157,13 +167,19 @@ class ImageSOMOutput(BaseInvocationOutput):
     map_width: int = OutputField(description="Width of the SOM image")
     map_height: int = OutputField(description="Height of the SOM image")
 
+
+SWAP_MODES = [
+    'Direct',
+    'Reorient corners',
+    'Minimize distances',
+]
    
 @invocation(
     'image_som',
     title="Image Quantize (Kohonen map)",
     tags=["image", "color", "quantize", "som", "kohonen", "palette"],
     category="image",
-    version="0.6.3"
+    version="0.8.2"
 )
 class ImageSOMInvocation(BaseInvocation):
     """Use a Kohonen self-organizing map to quantize the pixel values of an image"""
@@ -172,9 +188,14 @@ class ImageSOMInvocation(BaseInvocation):
         default=None,
         description="Use an existing SOM instead of training one (skips all training)"
     )
-    map_width:      int   = InputField(default=16, description="Width (in cells) of the self-organizing map to train")
-    map_height:     int   = InputField(default=16, description="Height (in cells) of the self-organizing map to train")
-    steps:          int   = InputField(default=64, description="Training step count for the self-organizing map")
+    swap_map: Optional[ImageField] = InputField(
+        default=None,
+        description="Take another map and swap in its colors after obtaining best-match indices but prior to mapping"
+    )
+    swap_mode: Literal[tuple(SWAP_MODES)] = InputField(default=SWAP_MODES[2], description="How to employ the swap map - directly, reoriented or rearranged")
+    map_width: int = InputField(default=16, description="Width (in cells) of the self-organizing map to train")
+    map_height: int = InputField(default=16, description="Height (in cells) of the self-organizing map to train")
+    steps: int = InputField(default=64, description="Training step count for the self-organizing map")
     training_scale: float = InputField(
         default=0.25,
         description="Nearest-neighbor scale image size prior to sampling - size close to sample size is recommended"
@@ -211,6 +232,7 @@ class ImageSOMInvocation(BaseInvocation):
 
         image_in = image_in.convert('RGB')
         image_in = tensor_from_pil_image(image_in, normalize=False)
+        image_in = oklab_from_linear_srgb(linear_srgb_from_srgb(image_in))
         image_in = image_in.expand(*([1] + list(image_in.shape)))
 
         som_tensor = None
@@ -302,10 +324,14 @@ class ImageSOMInvocation(BaseInvocation):
             image_in = context.images.get_pil(self.image_in.image_name)
             image_in = image_in.convert('RGB')
             image_in = tensor_from_pil_image(image_in, normalize=False)
+            image_in = oklab_from_linear_srgb(linear_srgb_from_srgb(image_in))
             image_in = image_in.expand(*([1] + list(image_in.shape)))
 
         image_out = torch.clone(image_in)
 
+        bmus_i = torch.empty((image_out.shape[2], image_out.shape[3]), dtype=torch.int32)
+        bmus_j = torch.empty((image_out.shape[2], image_out.shape[3]), dtype=torch.int32)
+        
         if (  # Do the entire computation at once if the map is small enough
                 (som_tensor.shape[2] * som_tensor.shape[3] * image_out.shape[2] * image_out.shape[3]) <=
                 (32 * 32 * 1920 * 1080)  # TODO: Need to determine limits...
@@ -327,16 +353,12 @@ class ImageSOMInvocation(BaseInvocation):
             # _min is (1, h, w) min distances, while som_idx_j is (1, h, w) bmu indices
 
             bmus_j = som_idx_j[0]
-            bmus_i = torch.empty((image_out.shape[2], image_out.shape[3]), dtype=bmus_j.dtype)
 
             for i in range(image_in.shape[2]):
                 row_bmus_j = som_idx_j[0, i]
                 bmus_i[i] = som_idx_i[0, i, torch.arange(som_idx_i.shape[2]), row_bmus_j]
 
-            image_out = som_tensor[:,:,bmus_i,bmus_j]
         else:
-            bmus_i = torch.empty((image_out.shape[2], image_out.shape[3]), dtype=torch.int32)
-            bmus_j = torch.empty((image_out.shape[2], image_out.shape[3]), dtype=torch.int32)
             for i in range(image_out.shape[2]):
 
                 # For every pair of som coordinates, this contains the entire image row:
@@ -357,12 +379,163 @@ class ImageSOMInvocation(BaseInvocation):
 
                 bmus_i[i] = row_som_idx_i[0, torch.arange(row_som_idx_i.shape[1]), bmus_j[i]]
 
-            image_out = som_tensor[:,:,bmus_i,bmus_j]
+        if self.swap_map is not None:
+            swap_map = context.images.get_pil(self.swap_map.image_name)
+            swap_map = swap_map.convert('RGB')
+            swap_map = tensor_from_pil_image(swap_map, normalize=False)
+            swap_map = oklab_from_linear_srgb(linear_srgb_from_srgb(swap_map))
+            swap_map = swap_map.expand(*([1] + list(swap_map.shape)))
 
-        image_out = pil_image_from_tensor(image_out[0], mode="RGB")
+            n_elements = som_tensor.shape[2] * som_tensor.shape[3]
+            expanded_som = torch.clone(
+                som_tensor.view((3, n_elements))
+            ).expand((n_elements, 3, n_elements)).movedim(0, 2)
+            expanded_swap_map = torch.clone(
+                swap_map.view((3, n_elements))
+            ).expand((n_elements, 3, n_elements)).movedim(0, 1)
+
+            if self.swap_mode == 'Minimize distances':
+                swap_buffer = torch.clone(swap_map)
+                cost_matrix = torch.sum(torch.square(torch.sub(expanded_som, expanded_swap_map)), 0).detach().cpu().numpy()
+                i_indices, j_indices = linear_sum_assignment(cost_matrix)
+                for i, j in zip(i_indices, j_indices):
+                    swap_map.view((3, n_elements))[:, i] = swap_buffer.view((3, n_elements))[:,j]
+            elif self.swap_mode == 'Reorient corners':
+                swap_map_img = context.images.get_pil(self.swap_map.image_name)
+                som_tensor_img = pil_image_from_tensor(srgb_from_linear_srgb(linear_srgb_from_oklab(som_tensor.squeeze(0))), mode="RGB")
+
+                
+                def calculate_corner_distances(corners1, corners2):
+                    """
+                    Calculate Euclidean distances between corresponding corners.
+
+                    Args:
+                        corners1 (list): RGB tuples of corners from first image
+                        corners2 (list): RGB tuples of corners from second image
+
+                    Returns:
+                        float: Total Euclidean distance between corners
+                    """
+
+                    corners1 = oklab_from_linear_srgb(linear_srgb_from_srgb(torch.tensor(corners1).unsqueeze(0))).squeeze(0)
+                    corners2 = oklab_from_linear_srgb(linear_srgb_from_srgb(torch.tensor(corners2).unsqueeze(0))).squeeze(0)
+                    
+                    return sum(
+                        np.linalg.norm(np.array(c1) - np.array(c2)) 
+                        for c1, c2 in zip(corners1, corners2)
+                    )
+
+                def get_image_corners(img):
+                    """
+                    Extract corner pixel RGB values from an image.
+
+                    Args:
+                        img (PIL.Image): Input image
+
+                    Returns:
+                        list: RGB tuples of corners [top-left, top-right, bottom-left, bottom-right]
+                    """
+                    width, height = img.size
+                    corners = [
+                        img.getpixel((0, 0)),           # Top-left
+                        img.getpixel((width-1, 0)),     # Top-right
+                        img.getpixel((0, height-1)),    # Bottom-left
+                        img.getpixel((width-1, height-1)) # Bottom-right
+                    ]
+                    return corners
+
+                def find_best_transformation(img1, img2):
+                    """
+                    Find the best rotation/flip transformation to minimize corner distances.
+
+                    Args:
+                        img1 (PIL.Image): Reference image
+                        img2 (PIL.Image): Image to transform
+
+                    Returns:
+                        tuple: (best_rotation, best_flip, min_distance)
+                    """
+                    corners1 = get_image_corners(img1)
+
+                    # Possible transformations: rotations and flips
+                    rotations = [0, 90, 180, 270]
+                    flip_modes = [None, 'horizontal', 'vertical']
+
+                    best_rotation = 0
+                    best_flip = None
+                    min_distance = float('inf')
+
+                    for rotation in rotations:
+                        for flip in flip_modes:
+                            # Create transformed image
+                            transformed_img = img2.copy()
+
+                            # Apply rotation
+                            if 0 < rotation:
+                                transformed_img = transformed_img.rotate(rotation)
+
+                            # Apply flip
+                            if flip == 'horizontal':
+                                transformed_img = transformed_img.transpose(Image.FLIP_LEFT_RIGHT)
+                            elif flip == 'vertical':
+                                transformed_img = transformed_img.transpose(Image.FLIP_TOP_BOTTOM)
+
+                            # Get corners of transformed image
+                            corners2 = get_image_corners(transformed_img)
+
+                            # Calculate total corner distance
+                            distance = calculate_corner_distances(corners1, corners2)
+
+                            # Update best transformation if distance is smaller
+                            if distance < min_distance:
+                                min_distance = distance
+                                best_rotation = rotation
+                                best_flip = flip
+
+                    return best_rotation, best_flip, min_distance
+
+                def apply_transformation(img2, rotation, flip):
+                    """
+                    Apply the best transformation to the second image.
+
+                    Args:
+                        img2 (PIL.Image): Image to transform
+                        rotation (int): Rotation angle
+                        flip (str): Flip type
+
+                    Returns:
+                        PIL.Image: Transformed image
+                    """
+                    transformed_img = img2.copy()
+
+                    # Apply rotation
+                    if rotation:
+                        transformed_img = transformed_img.rotate(rotation)
+
+                    # Apply flip
+                    if flip == 'horizontal':
+                        transformed_img = transformed_img.transpose(Image.FLIP_LEFT_RIGHT)
+                    elif flip == 'vertical':
+                        transformed_img = transformed_img.transpose(Image.FLIP_TOP_BOTTOM)
+
+                    return transformed_img
+
+                
+                rotation, flip, min_distance = find_best_transformation(som_tensor_img, swap_map_img)
+                transformed_img = apply_transformation(swap_map_img, rotation, flip)
+                swap_map = tensor_from_pil_image(transformed_img, normalize=False)
+                swap_map = oklab_from_linear_srgb(linear_srgb_from_srgb(swap_map))
+                swap_map = swap_map.expand(*([1] + list(swap_map.shape)))
+            
+            som_tensor = swap_map  # [:,:,bmus_i, bmus_j]
+
+        image_out = som_tensor[:,:,bmus_i,bmus_j]
+        image_out = srgb_from_linear_srgb(linear_srgb_from_oklab(image_out[0]))
+        image_out = pil_image_from_tensor(image_out, mode="RGB")
         image_dto = context.images.save(image_out)
 
-        map_out = pil_image_from_tensor(som_tensor[0], mode="RGB")
+        som_tensor = srgb_from_linear_srgb(linear_srgb_from_oklab(som_tensor[0]))
+        map_out = pil_image_from_tensor(som_tensor, mode="RGB")
         som_dto = context.images.save(map_out)
 
         return ImageSOMOutput(
@@ -373,3 +546,9 @@ class ImageSOMInvocation(BaseInvocation):
             map_width=som_dto.width,
             map_height=som_dto.height
         )
+
+
+
+
+
+
