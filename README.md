@@ -1,3 +1,8 @@
+### Note:
+
+Currently, the version of the Transformers library [4.46.3] that's pinned for the InvokeAI package has a regression which results in the Clipseg nodes failing to work properly, giving the error ("ValueError: Input image size (352x352) doesn't match model (224x224)."). This is fixed at least as early as Transformers 4.48.3, which can be installed by activating your InvokeAI .venv and typing `uv pip install transformers==4.48.3`. This will fix the Clipseg nodes, although it's always possible there might be unintended consequences from upgrading.
+
+
 ### Installation:
 
 To install these nodes, simply place the folder containing this repository's code (or just clone the repository yourself) into your `invokeai/nodes` folder.
@@ -13,6 +18,10 @@ Output up to four prompt masks combined with logical "and", logical "or", or as 
 #### Image Search to Mask (Clipseg)
 
 Input a base image and a prompt image to generate a mask representing areas of the base image matched by the prompt image contents.
+
+#### Clipseg Mask Hierarchy
+
+This node takes up to seven pairs of prompts/threshold values, then descends through them hierarchically creating mutually exclusive masks out of whatever it can match from the input image. This means whatever is matched in prompt 1 will be subtracted from the match area for prompt 2; both areas will be omitted from the match area of prompt 3; etc. The idea is that by starting with foreground objects and working your way back through a scene, you can create a more-or-less complete segmentation map for the image whose constituent segments can be passed off to different masks for regional conditioning or other processing.
 
 #### Offset Latents
 
@@ -36,6 +45,31 @@ Create a white on black (or black on white) text image for use with controlnets 
 
 Currently this only generates one line of text, but it can be layered with other images using the Image Compositor node or any other such tool.
 
+#### 2D Noise Image
+
+Creates an image of 2D Noise approximating the desired characteristics, using various combinations of gaussian blur and arithmetic operations to perform low pass and high pass filtering of 2-dimensional spatial frequencies of each channel to create Red, Blue, or Green "colored noise".
+
+#### Noise (Spectral Characteristics)
+
+This operates like 2D Noise Image but outputs latent tensors, 4-channel or 16-channel.
+
+#### Flatten Histogram (Grayscale)
+
+Scales the values of an L-mode image by scaling them to the full range 0..255 in equal proportions
+
+#### Add Noise (Flux)
+
+Calculates the correct initial timestep noising amount and applies it to the given latent tensor using simple addition according to the specified ratio.
+
+#### Latent Quantize (Kohonen map)
+
+Use a self-organizing map to quantize the values of a latent tensor. This is highly experimental and not really suitable for most use cases. It's very easy to use settings that will appear to hang, or tie up the PC for a very long time, so use of this node is somewhat discouraged.
+
+#### Image Quantize (Kohonen map)
+
+Use a Kohonen self-organizing map to quantize the pixel values of an image. It's possible to pass in an existing map, which will be used instead of training a new one. It's also possible to pass in a "swap map", which will be used in place of the standard map's assigned pixel values in quantizing the target image - these values can be correlated either one by one by a linear assignment minimizing the distances\* between each of them, or by swapping their coordinates on the maps themselves, which can be orientedfirst such that their corner distances\* are minimized achieving a closest-fit while attempting to preserve mappings of adjacent colors.
+
+\*Here, "distances" refers to the euclidean distances between (L, a, b) tuples in Oklab color space.
 
 ### Nodes since moved to Invoke core:
 
