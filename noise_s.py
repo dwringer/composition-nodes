@@ -314,11 +314,16 @@ class NoiseSpectralInvocation(BaseInvocation):
         num_channels = 16 if self.flux16 else 4
         
         def torchify(arr):
-            epsilon = numpy.finfo(float).eps
-            arr = numpy.where(numpy.equal(arr, 0.0), epsilon, arr)
-            arr = (scipy.stats.boxcox(arr.flatten())[0]).reshape(arr.shape)
-            arr -= arr.mean()
-            arr /= math.sqrt(arr.var())
+            arr = scipy.stats.norm.ppf(arr)
+            arr_finite_max = numpy.max(numpy.where(numpy.isfinite(arr), arr, -1))
+            arr_finite_min = numpy.min(numpy.where(numpy.isfinite(arr), arr, 1))
+            arr = numpy.where( numpy.isfinite(arr), arr, numpy.where(0 < arr, arr_finite_max, arr_finite_min) )
+            # epsilon = numpy.finfo(float).eps
+            # arr = numpy.where(numpy.equal(arr, 0.0), epsilon, arr)
+            # arr = (scipy.stats.boxcox(arr.flatten())[0]).reshape(arr.shape)
+#            arr -= arr.mean()
+            # arr /= math.sqrt(arr.var())
+#            arr /= arr.var()
             arr = torch.from_numpy(arr)
             return arr
 
