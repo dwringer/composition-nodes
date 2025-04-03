@@ -3,6 +3,7 @@
 from .clipseg import *
 from .clipseg_adv import *
 from .cmyk import *
+from .freq_match import *
 from .image_offset import *
 from .image_rotate import *
 from .latents_offset import *
