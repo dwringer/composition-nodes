@@ -20,7 +20,10 @@ from invokeai.invocation_api import (
     version="1.2.0",
 )
 class ImageOffsetInvocation(BaseInvocation, WithMetadata, WithBoard):
-    """Offsets an image by a given percentage (or pixel amount)."""
+    """Offsets an image by a given percentage (or pixel amount).
+
+This works like Offset Latents, but in image space, with the additional capability of taking exact pixel offsets instead of just percentages (toggled with a switch/boolean input).
+"""
 
     as_pixels: bool = InputField(default=False, description="Interpret offsets as pixels rather than percentages")
     image: ImageField = InputField(default=None, description="Image to be offset")

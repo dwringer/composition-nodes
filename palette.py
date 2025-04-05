@@ -35,6 +35,125 @@ def tensor_from_pil_image(img, normalize=False):
     return image_resized_to_grid_as_tensor(img, normalize=normalize, multiple_of=1)
 
 
+def calculate_corner_distances(corners1, corners2):
+    """
+    Calculate Euclidean distances between corresponding corners' [Ok]LAB color coordinates.
+
+    Args:
+        corners1 (list): RGB tuples of corners from first image
+        corners2 (list): RGB tuples of corners from second image
+
+    Returns:
+        float: Total Euclidean distance between corners
+    """
+
+    corners1 = oklab_from_linear_srgb(linear_srgb_from_srgb(torch.tensor(corners1).unsqueeze(0))).squeeze(0)
+    corners2 = oklab_from_linear_srgb(linear_srgb_from_srgb(torch.tensor(corners2).unsqueeze(0))).squeeze(0)
+
+    return sum(
+        np.linalg.norm(np.array(c1) - np.array(c2)) 
+        for c1, c2 in zip(corners1, corners2)
+    )
+
+
+def get_image_corners(img):
+    """
+    Extract corner pixel RGB values from an image.
+
+    Args:
+        img (PIL.Image): Input image
+
+    Returns:
+        list: RGB tuples of corners [top-left, top-right, bottom-left, bottom-right]
+    """
+    width, height = img.size
+    corners = [
+        img.getpixel((0, 0)),           # Top-left
+        img.getpixel((width-1, 0)),     # Top-right
+        img.getpixel((0, height-1)),    # Bottom-left
+        img.getpixel((width-1, height-1)) # Bottom-right
+    ]
+    return corners
+
+
+def find_best_transformation(img1, img2):
+    """
+    Find the best image rotation/flip transformation to minimize corner distances.
+
+    Args:
+        img1 (PIL.Image): Reference image
+        img2 (PIL.Image): Image to transform
+
+    Returns:
+        tuple: (best_rotation, best_flip, min_distance)
+    """
+    corners1 = get_image_corners(img1)
+
+    # Possible transformations: rotations and flips
+    rotations = [0, 90, 180, 270]
+    flip_modes = [None, 'horizontal', 'vertical']
+
+    best_rotation = 0
+    best_flip = None
+    min_distance = float('inf')
+
+    for rotation in rotations:
+        for flip in flip_modes:
+            # Create transformed image
+            transformed_img = img2.copy()
+
+            # Apply rotation
+            if 0 < rotation:
+                transformed_img = transformed_img.rotate(rotation)
+
+            # Apply flip
+            if flip == 'horizontal':
+                transformed_img = transformed_img.transpose(Image.FLIP_LEFT_RIGHT)
+            elif flip == 'vertical':
+                transformed_img = transformed_img.transpose(Image.FLIP_TOP_BOTTOM)
+
+            # Get corners of transformed image
+            corners2 = get_image_corners(transformed_img)
+
+            # Calculate total corner distance
+            distance = calculate_corner_distances(corners1, corners2)
+
+            # Update best transformation if distance is smaller
+            if distance < min_distance:
+                min_distance = distance
+                best_rotation = rotation
+                best_flip = flip
+
+    return best_rotation, best_flip, min_distance
+
+
+def apply_transformation(img2, rotation, flip):
+    """
+    Apply a preset transformation to an image.
+
+    Args:
+        img2 (PIL.Image): Image to transform
+        rotation (int): Rotation angle
+        flip (str): Flip type
+
+    Returns:
+        PIL.Image: Transformed image
+    """
+    transformed_img = img2.copy()
+
+    # Apply rotation
+    if rotation:
+        transformed_img = transformed_img.rotate(rotation)
+
+    # Apply flip
+    if flip == 'horizontal':
+        transformed_img = transformed_img.transpose(Image.FLIP_LEFT_RIGHT)
+    elif flip == 'vertical':
+        transformed_img = transformed_img.transpose(Image.FLIP_TOP_BOTTOM)
+
+    return transformed_img
+
+
 @invocation(
     'latent_som',
     title="Latent Quantize (Kohonen map)",
@@ -43,7 +162,10 @@ def tensor_from_pil_image(img, normalize=False):
     version="0.0.3"
 )
 class LatentSOMInvocation(BaseInvocation):
-    """Use a self-organizing map to quantize the values of a latent tensor"""
+    """Use a self-organizing map to quantize the values of a latent tensor.
+
+This is highly experimental and not really suitable for most use cases. It's very easy to use settings that will appear to hang, or tie up the PC for a very long time, so use of this node is somewhat discouraged.
+"""
     latents_in: LatentsField = InputField(description="The latents tensor to quantize")
     reference_in: Optional[LatentsField] = InputField(
         default=None,
@@ -182,7 +304,13 @@ SWAP_MODES = [
     version="0.8.2"
 )
 class ImageSOMInvocation(BaseInvocation):
-    """Use a Kohonen self-organizing map to quantize the pixel values of an image"""
+    """Use a Kohonen self-organizing map to quantize the pixel values of an image.
+
+It's possible to pass in an existing map, which will be used instead of training a new one. It's also possible to pass in a "swap map", which will be used in place of the standard map's assigned pixel values in quantizing the target image - these values can be correlated either one by one by a linear assignment minimizing the distances\* between each of them, or by swapping their coordinates on the maps themselves, which can be oriented first such that their corner distances\* are minimized achieving a closest-fit while attempting to preserve mappings of adjacent colors.
+
+\*Here, "distances" refers to the euclidean distances between (L, a, b) tuples in Oklab color space.
+"""
+
     image_in: ImageField = InputField(description="The image to quantize")
     map_in: Optional[ImageField] = InputField(
         default=None,
@@ -403,123 +531,6 @@ class ImageSOMInvocation(BaseInvocation):
             elif self.swap_mode == 'Reorient corners':
                 swap_map_img = context.images.get_pil(self.swap_map.image_name)
                 som_tensor_img = pil_image_from_tensor(srgb_from_linear_srgb(linear_srgb_from_oklab(som_tensor.squeeze(0))), mode="RGB")
-
-                
-                def calculate_corner_distances(corners1, corners2):
-                    """
-                    Calculate Euclidean distances between corresponding corners.
-
-                    Args:
-                        corners1 (list): RGB tuples of corners from first image
-                        corners2 (list): RGB tuples of corners from second image
-
-                    Returns:
-                        float: Total Euclidean distance between corners
-                    """
-
-                    corners1 = oklab_from_linear_srgb(linear_srgb_from_srgb(torch.tensor(corners1).unsqueeze(0))).squeeze(0)
-                    corners2 = oklab_from_linear_srgb(linear_srgb_from_srgb(torch.tensor(corners2).unsqueeze(0))).squeeze(0)
-                    
-                    return sum(
-                        np.linalg.norm(np.array(c1) - np.array(c2)) 
-                        for c1, c2 in zip(corners1, corners2)
-                    )
-
-                def get_image_corners(img):
-                    """
-                    Extract corner pixel RGB values from an image.
-
-                    Args:
-                        img (PIL.Image): Input image
-
-                    Returns:
-                        list: RGB tuples of corners [top-left, top-right, bottom-left, bottom-right]
-                    """
-                    width, height = img.size
-                    corners = [
-                        img.getpixel((0, 0)),           # Top-left
-                        img.getpixel((width-1, 0)),     # Top-right
-                        img.getpixel((0, height-1)),    # Bottom-left
-                        img.getpixel((width-1, height-1)) # Bottom-right
-                    ]
-                    return corners
-
-                def find_best_transformation(img1, img2):
-                    """
-                    Find the best rotation/flip transformation to minimize corner distances.
-
-                    Args:
-                        img1 (PIL.Image): Reference image
-                        img2 (PIL.Image): Image to transform
-
-                    Returns:
-                        tuple: (best_rotation, best_flip, min_distance)
-                    """
-                    corners1 = get_image_corners(img1)
-
-                    # Possible transformations: rotations and flips
-                    rotations = [0, 90, 180, 270]
-                    flip_modes = [None, 'horizontal', 'vertical']
-
-                    best_rotation = 0
-                    best_flip = None
-                    min_distance = float('inf')
-
-                    for rotation in rotations:
-                        for flip in flip_modes:
-                            # Create transformed image
-                            transformed_img = img2.copy()
-
-                            # Apply rotation
-                            if 0 < rotation:
-                                transformed_img = transformed_img.rotate(rotation)
-
-                            # Apply flip
-                            if flip == 'horizontal':
-                                transformed_img = transformed_img.transpose(Image.FLIP_LEFT_RIGHT)
-                            elif flip == 'vertical':
-                                transformed_img = transformed_img.transpose(Image.FLIP_TOP_BOTTOM)
-
-                            # Get corners of transformed image
-                            corners2 = get_image_corners(transformed_img)
-
-                            # Calculate total corner distance
-                            distance = calculate_corner_distances(corners1, corners2)
-
-                            # Update best transformation if distance is smaller
-                            if distance < min_distance:
-                                min_distance = distance
-                                best_rotation = rotation
-                                best_flip = flip
-
-                    return best_rotation, best_flip, min_distance
-
-                def apply_transformation(img2, rotation, flip):
-                    """
-                    Apply the best transformation to the second image.
-
-                    Args:
-                        img2 (PIL.Image): Image to transform
-                        rotation (int): Rotation angle
-                        flip (str): Flip type
-
-                    Returns:
-                        PIL.Image: Transformed image
-                    """
-                    transformed_img = img2.copy()
-
-                    # Apply rotation
-                    if rotation:
-                        transformed_img = transformed_img.rotate(rotation)
-
-                    # Apply flip
-                    if flip == 'horizontal':
-                        transformed_img = transformed_img.transpose(Image.FLIP_LEFT_RIGHT)
-                    elif flip == 'vertical':
-                        transformed_img = transformed_img.transpose(Image.FLIP_TOP_BOTTOM)
-
-                    return transformed_img
-
                 
                 rotation, flip, min_distance = find_best_transformation(som_tensor_img, swap_map_img)
                 transformed_img = apply_transformation(swap_map_img, rotation, flip)

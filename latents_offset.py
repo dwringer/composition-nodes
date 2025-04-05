@@ -21,7 +21,10 @@ from invokeai.invocation_api import (
     version="1.2.0",
 )
 class OffsetLatentsInvocation(BaseInvocation):
-    """Offsets a latents tensor by a given percentage of height/width."""
+    """Offsets a latents tensor by a given percentage of height/width.
+
+This takes a Latents input as well as two numbers (between 0 and 1), which are used to offset the latents in the vertical and/or horizontal directions. 0.5/0.5 would offset the image 50% in both directions such that the corners will wrap around and become the center of the image.
+"""
 
     latents: LatentsField = InputField(
         description=FieldDescriptions.latents,

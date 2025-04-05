@@ -94,7 +94,7 @@ class CMYKSplitOutput(BaseInvocationOutput):
 class CMYKSplitInvocation(BaseInvocation, WithMetadata, WithBoard):
     """Split an image into subtractive color channels (CMYK+alpha)"""
 
-    image: ImageField = InputField(description="The image to halftone", default=None)
+    image: ImageField = InputField(description="The image to split into additive channels", default=None)
     profile: Literal[tuple(color_profiles.keys())] = InputField(
         default=list(color_profiles.keys())[0], description="CMYK Color Profile"
     )

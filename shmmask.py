@@ -39,7 +39,10 @@ class ShadowsHighlightsMidtonesMasksOutput(BaseInvocationOutput):
     version="1.2.0",
 )
 class ShadowsHighlightsMidtonesMaskInvocation(BaseInvocation, WithMetadata, WithBoard):
-    """Extract a Shadows/Highlights/Midtones mask from an image"""
+    """Extract a Shadows/Highlights/Midtones mask from an image.
+
+Extract three masks (with adjustable hard or soft thresholds) representing shadows, midtones, and highlights regions of an image.
+"""
 
     image: ImageField = InputField(description="Image from which to extract mask")
     invert_output: bool = InputField(default=True, description="Off: white on black / On: black on white")

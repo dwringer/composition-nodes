@@ -77,7 +77,11 @@ class ClipsegBase():
     version="1.2.1",
 )
 class TextToMaskClipsegInvocation(BaseInvocation, ClipsegBase, WithMetadata, WithBoard):
-    """Uses the Clipseg model to generate an image mask from a text prompt"""
+    """Uses the Clipseg model to generate an image mask from a text prompt.
+
+Input a prompt and an image to generate a mask representing areas of the image matched by the prompt.
+
+"""
 
     image: ImageField = InputField(description="The image from which to create a mask")
     invert_output: bool = InputField(default=True, description="Off: white on black / On: black on white")
@@ -143,7 +147,9 @@ class TextToMaskClipsegInvocation(BaseInvocation, ClipsegBase, WithMetadata, Wit
     version="1.0.0",
 )
 class ImageSearchToMaskClipsegInvocation(BaseInvocation, ClipsegBase, WithMetadata, WithBoard):
-    """Uses the Clipseg model to generate an image mask from an image prompt"""
+    """Uses the Clipseg model to generate an image mask from an image prompt.
+
+Input a base image and a prompt image to generate a mask representing areas of the base image matched by the prompt image contents."""
 
     image: ImageField = InputField(description="The image from which to create a mask")
     search_image: ImageField = InputField(description="Image prompt for which to search", default=None)

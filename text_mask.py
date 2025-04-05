@@ -15,7 +15,12 @@ from invokeai.invocation_api import (
 
 @invocation("text_mask", title="Text Mask", tags=["image", "text", "mask"], category="mask", version="1.2.0")
 class TextMaskInvocation(BaseInvocation, WithMetadata, WithBoard):
-    """Creates a 2D rendering of a text mask from a given font"""
+    """Creates a 2D rendering of a text mask from a given font.
+
+Create a white on black (or black on white) text image for use with controlnets or further processing in other nodes. Specify any TTF/OTF font file available to Invoke and control parameters to resize, rotate, and reposition the text.
+
+Currently this only generates one line of text, but it can be layered with other images using the Image Compositor node or any other such tool.
+"""
 
     width: int = InputField(default=512, description="The width of the desired mask")
     height: int = InputField(default=512, description="The height of the desired mask")

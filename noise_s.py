@@ -231,7 +231,10 @@ def green_noise_image(
     version="1.2.0",
 )
 class NoiseImage2DInvocation(BaseInvocation, WithMetadata, WithBoard):
-    """Creates an image of 2D Noise approximating the desired characteristics"""
+    """Creates an image of 2D Noise approximating the desired characteristics.
+
+Creates an image of 2D Noise approximating the desired characteristics, using various combinations of gaussian blur and arithmetic operations to perform low pass and high pass filtering of 2-dimensional spatial frequencies of each channel to create Red, Blue, or Green "colored noise".
+"""
 
     noise_type: Literal["White", "Red", "Blue", "Green"] = InputField(  # TODO: Pyramid Noise
         default="White", description="Desired noise spectral characteristics"
@@ -292,7 +295,11 @@ class NoiseImage2DInvocation(BaseInvocation, WithMetadata, WithBoard):
     version="1.3.0",
 )
 class NoiseSpectralInvocation(BaseInvocation):
-    """Creates an image of 2D Noise approximating the desired characteristics"""
+    """Creates a latents tensor of 2D noise channels approximating the desired characteristics.
+
+This operates like 2D Noise Image but outputs latent tensors, 4-channel or 16-channel.
+
+"""
 
     noise_type: Literal["White", "Red", "Blue", "Green"] = InputField(
         default="White", description="Desired noise spectral characteristics"
@@ -437,7 +444,10 @@ class FlattenHistogramMono(BaseInvocation, WithMetadata, WithBoard):
     version="0.0.1",
 )
 class NoiseAddFluxInvocation(BaseInvocation):
-    """Add noise to a flux latents tensor using the appropriate ratio given the denoising schedule timestep."""
+    """Add noise to a flux latents tensor using the appropriate ratio given the denoising schedule timestep.
+
+Calculates the correct initial timestep noising amount and applies it to the given latent tensor using simple addition according to the specified ratio.
+"""
 
     latents_in: LatentsField = InputField(description=FieldDescriptions.latents, input=Input.Connection)
     noise_in: LatentsField = InputField(description="The noise to be added", input=Input.Connection)

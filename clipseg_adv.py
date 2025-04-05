@@ -40,7 +40,10 @@ COMBINE_MODES: list = [
     version="1.2.2",
 )
 class TextToMaskClipsegAdvancedInvocation(BaseInvocation, ClipsegBase, WithMetadata, WithBoard):
-    """Uses the Clipseg model to generate an image mask from a text prompt"""
+    """Uses the Clipseg model to generate an image mask from a text prompt.
+
+Output up to four prompt masks combined with logical "and", logical "or", or as separate channels of an RGBA image.
+"""
 
     image: ImageField = InputField(description="The image from which to create a mask")
     invert_output: bool = InputField(default=True, description="Off: white on black / On: black on white")
@@ -179,7 +182,10 @@ class ClipsegMaskHierarchyOutput(BaseInvocationOutput):
     version="1.2.2",
 )
 class ClipsegMaskHierarchyInvocation(BaseInvocation, ClipsegBase, WithMetadata, WithBoard):
-    """Creates a segmentation hierarchy of mutually exclusive masks from clipseg text prompts"""
+    """Creates a segmentation hierarchy of mutually exclusive masks from clipseg text prompts.
+
+This node takes up to seven pairs of prompts/threshold values, then descends through them hierarchically creating mutually exclusive masks out of whatever it can match from the input image. This means whatever is matched in prompt 1 will be subtracted from the match area for prompt 2; both areas will be omitted from the match area of prompt 3; etc. The idea is that by starting with foreground objects and working your way back through a scene, you can create a more-or-less complete segmentation map for the image whose constituent segments can be passed off to different masks for regional conditioning or other processing.
+"""
 
     image: ImageField = InputField(description="The image from which to create masks")
     invert_output: bool = InputField(default=True, description="Off: white on black / On: black on white")

@@ -30,7 +30,10 @@ def tensor_from_pil_image(img, normalize=False):
     version="1.2.0",
 )
 class ImageRotateInvocation(BaseInvocation, WithMetadata, WithBoard):
-    """Rotates an image by a given angle (in degrees clockwise)."""
+    """Rotates an image by a given angle (in degrees clockwise).
+
+Rotate an image in degrees about its center, clockwise (positive entries) or counterclockwise (negative entries). Optionally expand the image boundary to fit the rotated image, or flip it horizontally or vertically.
+"""
 
     image: ImageField = InputField(default=None, description="Image to be rotated clockwise")
     degrees: float = InputField(default=90.0, description="Angle (in degrees clockwise) by which to rotate")
