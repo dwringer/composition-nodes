@@ -1,13 +1,50 @@
+# composition-nodes
+
+**Repository Name:** Composition Nodes Pack for InvokeAI
+
+**Author:** dwringer
+
+**License:** MIT
+
+**Requirements:**
+- invokeai>=4
+
+## Introduction
 ### Note:
 
-Currently, the version of the Transformers library [4.46.3] that's pinned for the InvokeAI package has a regression which results in the Clipseg nodes failing to work properly, giving the error ("ValueError: Input image size (352x352) doesn't match model (224x224)."). This is fixed at least as early as Transformers 4.48.3, which can be installed by activating your InvokeAI .venv and typing `uv pip install transformers==4.48.3`. This will fix the Clipseg nodes, although it's always possible there might be unintended consequences from upgrading.
-
+If you're attempting to use any of the Clipseg nodes and you
+encounter the error, `ValueError: Input image size (352x352) doesn't
+match model (224x224).`, it is because there was a temporary
+regression in the Transformers library that broke Clipseg pipelines
+for a few versions, which got installed with certain
+versions/platforms of InvokeAI. This issue was fixed at least as
+early as Transformers 4.48.3, which can be installed by activating
+your InvokeAI .venv and typing `uv pip install
+transformers==4.48.3`.
 
 ### Installation:
 
-To install these nodes, simply place the folder containing this repository's code (or just clone the repository yourself) into your `invokeai/nodes` folder.
+To install these nodes, simply place the folder containing this
+repository's code (or just clone the repository yourself) into your
+`invokeai/nodes` folder.
 
-# composition-nodes
+Generally, the two methods of installation are:
+
+- Open a terminal with git access (`git bash` on Windows) in
+your InvokeAI home directory, and `cd` to the `nodes`
+subdirectory. If you installed to `C:\Users\<user
+name>\invokeai\` then you will want your terminal to be open to
+`C:\Users\<user name>\invokeai\nodes\`.  Then simply type:
+```
+git clone https://github.com/dwringer/composition-nodes.git
+```
+
+- Or, download the source code of this repository as a .zip file by
+clicking the green `<> Code` button above and selecting `Download
+ZIP`, then extract the folder within and place it as a subfolder
+inside the `nodes` folder of your InvokeAI home directory (e.g.,
+`C:\Users\<user name>\invokeai\nodes\composition-nodes-master\`)
+
 ## Overview
 ### Nodes
 - [2D Noise Image](#2d-noise-image) - Creates an image of 2D Noise approximating the desired characteristics.
@@ -17,6 +54,8 @@ To install these nodes, simply place the folder containing this repository's cod
 - [CMYK Merge](#cmyk-merge) - Merge subtractive color channels (CMYK+alpha)
 - [CMYK Split](#cmyk-split) - Split an image into subtractive color channels (CMYK+alpha)
 - [Flatten Histogram (Grayscale)](#flatten-histogram-grayscale) - Scales the values of an L-mode image by scaling them to the full range 0..255 in equal proportions
+- [Freq. Blend Match & Phase Blend](#freq-blend-match--phase-blend) - Generates latent noise with the frequency spectrum of target latents, masked by a provided mask image.
+- [Freq. Match & Phase Blend Latents](#freq-match--phase-blend-latents) - Generates latent noise with the frequency spectrum of target latents, masked by a provided mask image.
 - [Frequency Spectrum Match Latents](#frequency-spectrum-match-latents) - Generates latent noise with the frequency spectrum of target latents, masked by a provided mask image.
 - [Image Quantize (Kohonen map)](#image-quantize-kohonen-map) - Use a Kohonen self-organizing map to quantize the pixel values of an image.
 - [Image Search to Mask (Clipseg)](#image-search-to-mask-clipseg) - Uses the Clipseg model to generate an image mask from an image prompt.
@@ -421,6 +460,100 @@ This node takes up to seven pairs of prompts/threshold values, then descends thr
 </summary>
 
 **Type:** `ImageOutput.build(...)`
+
+
+
+</details>
+
+---
+### Freq. Blend Match & Phase Blend
+**ID:** `frequency_blend_match_phase_blend_latents`
+
+**Category:** latents
+
+**Tags:** latents, noise, frequency, mask, blend, phase
+
+**Version:** 1.0.0
+
+**Description:** Generates latent noise with the frequency spectrum of target latents, masked by a provided mask image.
+
+Takes both target latents and white noise latents as inputs.
+
+<details>
+<summary>
+
+#### Inputs
+
+</summary>
+
+| Name | Type | Description | Default |
+| ---- | ---- | ----------- | ------- |
+| `target_latents_a` | `LatentsField` | Target latents to match frequency spectrum (A) | None |
+| `target_latents_b` | `LatentsField` | Target latents to match frequency spectrum (B) | None |
+| `frequency_blend_alpha` | `float` | Blend ratio for the frequency spectra | 0.0 |
+| `phase_latents_a` | `LatentsField` | White noise latents for phase information (A) | None |
+| `phase_latents_b` | `LatentsField` | White noise latents for phase information (B) | None |
+| `phase_blend_alpha` | `float` | Blend ratio for the phases | 0.0 |
+| `mask` | `Optional[ImageField]` | Mask for blending (optional) | None |
+| `blur_sigma` | `float` | Amount of Gaussian blur to apply to the mask | 0 |
+
+
+</details>
+
+<details>
+<summary>
+
+#### Output
+
+</summary>
+
+**Type:** `LatentsOutput.build(...)`
+
+
+
+</details>
+
+---
+### Freq. Match & Phase Blend Latents
+**ID:** `frequency_match_phase_blend_latents`
+
+**Category:** latents
+
+**Tags:** latents, noise, frequency, mask, blend, phase
+
+**Version:** 1.0.0
+
+**Description:** Generates latent noise with the frequency spectrum of target latents, masked by a provided mask image.
+
+Takes both target latents and white noise latents as inputs.
+
+<details>
+<summary>
+
+#### Inputs
+
+</summary>
+
+| Name | Type | Description | Default |
+| ---- | ---- | ----------- | ------- |
+| `target_latents` | `LatentsField` | Target latents to match frequency spectrum | None |
+| `phase_latents_a` | `LatentsField` | White noise latents for phase information (A) | None |
+| `phase_latents_b` | `LatentsField` | White noise latents for phase information (B) | None |
+| `phase_blend_alpha` | `float` | Blend ratio for the phases | 0.0 |
+| `mask` | `Optional[ImageField]` | Mask for blending (optional) | None |
+| `blur_sigma` | `float` | Amount of Gaussian blur to apply to the mask | 0 |
+
+
+</details>
+
+<details>
+<summary>
+
+#### Output
+
+</summary>
+
+**Type:** `LatentsOutput.build(...)`
 
 
 
@@ -1099,9 +1232,13 @@ Output up to four prompt masks combined with logical "and", logical "or", or as 
 
 ---
 
+## Footnotes
 ### Nodes since moved to Invoke core:
 
-The following nodes are no longer maintained here because they were integrated with InvokeAI core. If you have a version prior to 5.4.2 and want to install them anyway, you can revert to the pre-invoke-5_4 tag of this repo.
+The following nodes are no longer maintained here because they were
+integrated with InvokeAI core. If you have a version prior to 5.4.2
+and want to install them anyway, you can revert to the
+pre-invoke-5_4 tag of this repo.
 
 #### Adjust Image Hue Plus
 
@@ -1109,38 +1246,68 @@ Rotate the hue of an image in one of several different color spaces.
 
 #### Blend Latents/Noise (Masked)
 
-Use a mask to blend part of one latents/noise tensor into another. Can be used to "renoise" sections during a multi-stage [masked] denoising process.
+Use a mask to blend part of one latents/noise tensor into
+another. Can be used to "renoise" sections during a multi-stage
+[masked] denoising process.
 
 #### Enhance Image
 
-Boost or reduce color saturation, contrast, brightness, sharpness, or invert colors of any image at any stage with this simple wrapper for pillow [PIL]'s ImageEnhance module.
+Boost or reduce color saturation, contrast, brightness, sharpness,
+or invert colors of any image at any stage with this simple wrapper
+for pillow [PIL]'s ImageEnhance module.
 
-Color inversion is toggled with a simple switch, while each of the four enhancer modes are activated by entering a value other than 1 in each corresponding input field. Values less than 1 will reduce the corresponding property, while values greater than 1 will enhance it.
+Color inversion is toggled with a simple switch, while each of the
+four enhancer modes are activated by entering a value other than 1
+in each corresponding input field. Values less than 1 will reduce
+the corresponding property, while values greater than 1 will enhance
+it.
 
 #### Equivalent Achromatic Lightness
 
-Calculates image lightness accounting for Helmholtz-Kohlrausch effect based on a method described by High, Green, and Nussbaum (2023) [https://doi.org/10.1002/col.22839].
+Calculates image lightness accounting for Helmholtz-Kohlrausch
+effect based on a method described by High, Green, and Nussbaum
+(2023) [https://doi.org/10.1002/col.22839].
 
 #### Image Layer Blend
 
-Perform a layered blend of two images using alpha compositing. Opacity of top layer is selectable, and a mask image may also be used. There are currently 23 blend modes supported and 8 color space modes. Four of the blend modes - Hue, Saturation, Color, and Luminosity - are restricted to only 6 of the color space modes: RGB and Linear RGB will convert to HSL for those blend modes. Several of the other blend modes only operate on the lightness channel of non-RGB color space modes.
+Perform a layered blend of two images using alpha
+compositing. Opacity of top layer is selectable, and a mask image
+may also be used. There are currently 23 blend modes supported and 8
+color space modes. Four of the blend modes - Hue, Saturation, Color,
+and Luminosity - are restricted to only 6 of the color space modes:
+RGB and Linear RGB will convert to HSL for those blend
+modes. Several of the other blend modes only operate on the
+lightness channel of non-RGB color space modes.
 
 Blend modes available: 
-Normal, Lighten Only, Darken Only, Lighten Only (EAL), Darken Only (EAL), Hue, Saturation, Color, Luminosity, Linear Dodge (Add), Subtract, Multiply, Divide, Screen, Overlay, Linear Burn, Difference, Hard Light, Soft Light, Vivid Light, Linear Light, Color Burn, Color Dodge
+  Normal, Lighten Only, Darken Only, Lighten Only (EAL), Darken
+  Only (EAL), Hue, Saturation, Color, Luminosity, Linear Dodge
+  (Add), Subtract, Multiply, Divide, Screen, Overlay, Linear
+  Burn, Difference, Hard Light, Soft Light, Vivid Light, Linear
+  Light, Color Burn, Color Dodge
 
-Color space modes available:
-RGB, Linear RGB, HSL, HSV, Okhsl, Okhsv, Oklch (Oklab), LCh (CIELab)
+  Color space modes available:
+    RGB, Linear RGB, HSL, HSV, Okhsl, Okhsv, Oklch (Oklab), LCh
+    (CIELab)
 
 #### Image Compositor
 
-Take a subject from an image with a flat backdrop and layer it on another image using a chroma key to specify a color value/threshold to remove backdrop pixels, or leave the color blank and a "flood select" will be used from the image corners.
+Take a subject from an image with a flat backdrop and layer it on
+another image using a chroma key to specify a color value/threshold
+to remove backdrop pixels, or leave the color blank and a "flood
+select" will be used from the image corners.
 
-The subject image may be scaled using the fill X and fill Y options (enable both to stretch-fit).  Final subject position may also be adjusted with X offset and Y offset. If used, chroma key may be specified either as an (R, G, B) tuple, or a CSS-3 color string.
+The subject image may be scaled using the fill X and fill Y options
+(enable both to stretch-fit).  Final subject position may also be
+adjusted with X offset and Y offset. If used, chroma key may be
+specified either as an (R, G, B) tuple, or a CSS-3 color string.
 
 #### Image Dilate or Erode
 
-Dilate or expand a mask (or any image!). This is equivalent to an expand/contract operation.
+Dilate or expand a mask (or any image!). This is equivalent to an
+expand/contract operation.
 
 #### Image Value Thresholds
 
 Clip an image to pure black/white beyond specified thresholds.
+
