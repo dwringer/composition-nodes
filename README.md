@@ -54,8 +54,6 @@ inside the `nodes` folder of your InvokeAI home directory (e.g.,
 - [CMYK Merge](#cmyk-merge) - Merge subtractive color channels (CMYK+alpha)
 - [CMYK Split](#cmyk-split) - Split an image into subtractive color channels (CMYK+alpha)
 - [Flatten Histogram (Grayscale)](#flatten-histogram-grayscale) - Scales the values of an L-mode image by scaling them to the full range 0..255 in equal proportions
-- [Freq. Blend Match & Phase Blend](#freq-blend-match--phase-blend) - Generates latent noise with the frequency spectrum of target latents, masked by a provided mask image.
-- [Freq. Match & Phase Blend Latents](#freq-match--phase-blend-latents) - Generates latent noise with the frequency spectrum of target latents, masked by a provided mask image.
 - [Frequency Spectrum Match Latents](#frequency-spectrum-match-latents) - Generates latent noise with the frequency spectrum of target latents, masked by a provided mask image.
 - [Image Quantize (Kohonen map)](#image-quantize-kohonen-map) - Use a Kohonen self-organizing map to quantize the pixel values of an image.
 - [Image Search to Mask (Clipseg)](#image-search-to-mask-clipseg) - Uses the Clipseg model to generate an image mask from an image prompt.
@@ -466,100 +464,6 @@ This node takes up to seven pairs of prompts/threshold values, then descends thr
 </details>
 
 ---
-### Freq. Blend Match & Phase Blend
-**ID:** `frequency_blend_match_phase_blend_latents`
-
-**Category:** latents
-
-**Tags:** latents, noise, frequency, mask, blend, phase
-
-**Version:** 1.0.0
-
-**Description:** Generates latent noise with the frequency spectrum of target latents, masked by a provided mask image.
-
-Takes both target latents and white noise latents as inputs.
-
-<details>
-<summary>
-
-#### Inputs
-
-</summary>
-
-| Name | Type | Description | Default |
-| ---- | ---- | ----------- | ------- |
-| `target_latents_a` | `LatentsField` | Target latents to match frequency spectrum (A) | None |
-| `target_latents_b` | `LatentsField` | Target latents to match frequency spectrum (B) | None |
-| `frequency_blend_alpha` | `float` | Blend ratio for the frequency spectra | 0.0 |
-| `phase_latents_a` | `LatentsField` | White noise latents for phase information (A) | None |
-| `phase_latents_b` | `LatentsField` | White noise latents for phase information (B) | None |
-| `phase_blend_alpha` | `float` | Blend ratio for the phases | 0.0 |
-| `mask` | `Optional[ImageField]` | Mask for blending (optional) | None |
-| `blur_sigma` | `float` | Amount of Gaussian blur to apply to the mask | 0 |
-
-
-</details>
-
-<details>
-<summary>
-
-#### Output
-
-</summary>
-
-**Type:** `LatentsOutput.build(...)`
-
-
-
-</details>
-
----
-### Freq. Match & Phase Blend Latents
-**ID:** `frequency_match_phase_blend_latents`
-
-**Category:** latents
-
-**Tags:** latents, noise, frequency, mask, blend, phase
-
-**Version:** 1.0.0
-
-**Description:** Generates latent noise with the frequency spectrum of target latents, masked by a provided mask image.
-
-Takes both target latents and white noise latents as inputs.
-
-<details>
-<summary>
-
-#### Inputs
-
-</summary>
-
-| Name | Type | Description | Default |
-| ---- | ---- | ----------- | ------- |
-| `target_latents` | `LatentsField` | Target latents to match frequency spectrum | None |
-| `phase_latents_a` | `LatentsField` | White noise latents for phase information (A) | None |
-| `phase_latents_b` | `LatentsField` | White noise latents for phase information (B) | None |
-| `phase_blend_alpha` | `float` | Blend ratio for the phases | 0.0 |
-| `mask` | `Optional[ImageField]` | Mask for blending (optional) | None |
-| `blur_sigma` | `float` | Amount of Gaussian blur to apply to the mask | 0 |
-
-
-</details>
-
-<details>
-<summary>
-
-#### Output
-
-</summary>
-
-**Type:** `LatentsOutput.build(...)`
-
-
-
-</details>
-
----
 ### Frequency Spectrum Match Latents
 **ID:** `frequency_match_latents`
 
@@ -582,8 +486,12 @@ Takes both target latents and white noise latents as inputs.
 
 | Name | Type | Description | Default |
 | ---- | ---- | ----------- | ------- |
-| `target_latents` | `LatentsField` | Target latents to match frequency spectrum | None |
-| `white_noise_latents` | `LatentsField` | White noise latents for phase information | None |
+| `target_latents_a` | `LatentsField` | Target latents to match frequency spectrum (A) | None |
+| `target_latents_b` | `Optional[LatentsField]` | Target latents to match frequency spectrum (B) (optional) | None |
+| `frequency_blend_alpha` | `float` | Blend ratio for the frequency spectra | 0.0 |
+| `phase_latents_a` | `LatentsField` | White noise latents for phase information (A) | None |
+| `phase_latents_b` | `Optional[LatentsField]` | White noise latents for phase information (B) (optional) | None |
+| `phase_blend_alpha` | `float` | Blend ratio for the phases | 0.0 |
 | `mask` | `Optional[ImageField]` | Mask for blending (optional) | None |
 | `blur_sigma` | `float` | Amount of Gaussian blur to apply to the mask | 0 |
 
