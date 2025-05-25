@@ -26,7 +26,7 @@ This works like Offset Latents, but in image space, with the additional capabili
 """
 
     as_pixels: bool = InputField(default=False, description="Interpret offsets as pixels rather than percentages")
-    image: ImageField = InputField(default=None, description="Image to be offset")
+    image: ImageField = InputField(description="Image to be offset")
     x_offset: float = InputField(default=0.5, description="x-offset for the subject")
     y_offset: float = InputField(default=0.5, description="y-offset for the subject")
 

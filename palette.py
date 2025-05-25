@@ -169,7 +169,7 @@ This is highly experimental and not really suitable for most use cases. It's ver
     latents_in: LatentsField = InputField(description="The latents tensor to quantize")
     reference_in: Optional[LatentsField] = InputField(
         default=None,
-        description="Optional alternate latents to use for training"
+        description="Optional alternate latents to use for training",
     )
     width:  int = InputField(default=4,   description="Width (in cells) of the self-organizing map")
     height: int = InputField(default=3,   description="Height (in cells) of the self-organizing map")
@@ -314,11 +314,11 @@ It's possible to pass in an existing map, which will be used instead of training
     image_in: ImageField = InputField(description="The image to quantize")
     map_in: Optional[ImageField] = InputField(
         default=None,
-        description="Use an existing SOM instead of training one (skips all training)"
+        description="Use an existing SOM instead of training one (skips all training)",
     )
     swap_map: Optional[ImageField] = InputField(
         default=None,
-        description="Take another map and swap in its colors after obtaining best-match indices but prior to mapping"
+        description="Take another map and swap in its colors after obtaining best-match indices but prior to mapping",
     )
     swap_mode: Literal[tuple(SWAP_MODES)] = InputField(default=SWAP_MODES[2], description="How to employ the swap map - directly, reoriented or rearranged")
     map_width: int = InputField(default=16, description="Width (in cells) of the self-organizing map to train")

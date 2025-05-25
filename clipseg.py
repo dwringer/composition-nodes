@@ -152,7 +152,7 @@ class ImageSearchToMaskClipsegInvocation(BaseInvocation, ClipsegBase, WithMetada
 Input a base image and a prompt image to generate a mask representing areas of the base image matched by the prompt image contents."""
 
     image: ImageField = InputField(description="The image from which to create a mask")
-    search_image: ImageField = InputField(description="Image prompt for which to search", default=None)
+    search_image: ImageField = InputField(description="Image prompt for which to search")
     invert_output: bool = InputField(default=True, description="Off: white on black / On: black on white")
     smoothing: float = InputField(default=4.0, description="Radius of blur to apply before thresholding")
     subject_threshold: float = InputField(default=0.4, description="Threshold above which is considered the subject")

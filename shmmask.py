@@ -24,9 +24,9 @@ from invokeai.invocation_api import (
 
 @invocation_output("shmmask_output")
 class ShadowsHighlightsMidtonesMasksOutput(BaseInvocationOutput):
-    highlights_mask: ImageField = OutputField(default=None, description="Soft-edged highlights mask")
-    midtones_mask: ImageField = OutputField(default=None, description="Soft-edged midtones mask")
-    shadows_mask: ImageField = OutputField(default=None, description="Soft-edged shadows mask")
+    highlights_mask: ImageField = OutputField(description="Soft-edged highlights mask")
+    midtones_mask: ImageField = OutputField(description="Soft-edged midtones mask")
+    shadows_mask: ImageField = OutputField(description="Soft-edged shadows mask")
     width: int = OutputField(description="Width of the input/outputs")
     height: int = OutputField(description="Height of the input/outputs")
 

@@ -30,14 +30,14 @@ class FrequencySpectrumMatchLatentsInvocation(BaseInvocation):
 
     target_latents_a: LatentsField = InputField(description="Target latents to match frequency spectrum (A)", input=Input.Connection)
     target_latents_b: Optional[LatentsField] = InputField(
+        default=None,
         description="Target latents to match frequency spectrum (B) (optional)",
-        default=None
     )
     frequency_blend_alpha: float = InputField(ge=0, le=1, default=0.0, description="Blend ratio for the frequency spectra")
     phase_latents_a: LatentsField = InputField(description="White noise latents for phase information (A)", input=Input.Connection)
     phase_latents_b: Optional[LatentsField] = InputField(
+        default=None,
         description="White noise latents for phase information (B) (optional)",
-        default=None
     )
     phase_blend_alpha: float = InputField(ge=0, le=1, default=0.0, description="Blend ratio for the phases")
     mask: Optional[ImageField] = InputField(default=None, description="Mask for blending (optional)")
@@ -165,7 +165,7 @@ class FrequencySpectrumMatchLatentsInvocation(BaseInvocation):
         )
         
         # Move result to CPU to free GPU memory
-        result_latents = result_latents.to("cpu")
+        result_latents = result_latents.float().to("cpu")
         torch.cuda.empty_cache()
         
         # Save the result

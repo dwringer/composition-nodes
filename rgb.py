@@ -1,5 +1,6 @@
 import numpy
 from PIL import Image
+from typing import Optional
 
 from invokeai.invocation_api import (
     BaseInvocation,
@@ -37,7 +38,7 @@ class RGBSplitOutput(BaseInvocationOutput):
 class RGBSplitInvocation(BaseInvocation, WithMetadata, WithBoard):
     """Split an image into RGB color channels and alpha"""
 
-    image: ImageField = InputField(description="The image to split into channels", default=None)
+    image: ImageField = InputField(description="The image to split into channels")
 
     def invoke(self, context: InvocationContext) -> RGBSplitOutput:
         image = context.images.get_pil(self.image.image_name)
@@ -79,10 +80,22 @@ class RGBSplitInvocation(BaseInvocation, WithMetadata, WithBoard):
 class RGBMergeInvocation(BaseInvocation, WithMetadata, WithBoard):
     """Merge RGB color channels and alpha"""
 
-    r_channel: ImageField = InputField(description="The red channel", default=None)
-    g_channel: ImageField = InputField(description="The green channel", default=None)
-    b_channel: ImageField = InputField(description="The blue channel", default=None)
-    alpha_channel: ImageField = InputField(description="The alpha channel", default=None)
+    r_channel: Optional[ImageField] = InputField(
+        default=None,
+        description="The red channel",
+    )
+    g_channel: Optional[ImageField] = InputField(
+        default=None,
+        description="The green channel",
+    )
+    b_channel: Optional[ImageField] = InputField(
+        default=None,
+        description="The blue channel",
+    )
+    alpha_channel: Optional[ImageField] = InputField(
+        default=None,
+        description="The alpha channel",
+    )
 
     def invoke(self, context: InvocationContext) -> ImageOutput:
         # Get the images for each channel, defaulting to black if not provided

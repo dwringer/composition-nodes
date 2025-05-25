@@ -141,35 +141,27 @@ Output up to four prompt masks combined with logical "and", logical "or", or as 
 class ClipsegMaskHierarchyOutput(BaseInvocationOutput):
     """Class for invocations that output a hierarchy of masks"""
     mask_1: ImageField = OutputField(
-        default=None,
         description="Mask corresponding to prompt 1 (full coverage)"
     )
     mask_2: ImageField = OutputField(
-        default=None,
         description="Mask corresponding to prompt 2 (minus mask 1)"
     )
     mask_3: ImageField = OutputField(
-        default=None,
         description="Mask corresponding to prompt 3 (minus masks 1 & 2)"
     )
     mask_4: ImageField = OutputField(
-        default=None,
         description="Mask corresponding to prompt 4 (minus masks 1, 2, & 3)"
     )
     mask_5: ImageField = OutputField(
-        default=None,
         description="Mask corresponding to prompt 5 (minus masks 1 thru 4)"
     )
     mask_6: ImageField = OutputField(
-        default=None,
         description="Mask corresponding to prompt 6 (minus masks 1 thru 5)"
     )
     mask_7: ImageField = OutputField(
-        default=None,
         description="Mask corresponding to prompt 7 (minus masks 1 thru 6)"
     )
     ground_mask: ImageField = OutputField(
-        default=None,
         description="Mask coresponding to remaining unmatched image areas."
     )
 
